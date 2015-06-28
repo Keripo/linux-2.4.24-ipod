@@ -975,6 +975,96 @@ irq_prio_swarm:
 		.byte   0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31
 		.endm
 
+#elif defined(CONFIG_ARCH_IPOD)
+
+#include <asm/arch/irqs.h>
+#include <asm/arch/hardware.h>
+
+		.macro	disable_fiq
+		ldr	pc, cop_fiq_loc
+
+cop_fiq_loc:	.word	cop_fiq
+
+		.endm
+
+		.macro  get_irqnr_and_base, irqnr, irqstat, base, tmp
+		mov     r0, #PP_CPU_TYPE
+		ldr     r0, [r0]
+		cmp     r0, #0
+		bne	1002f		/* branch if PP5020 */
+
+		/* PP5002 code */
+		ldr 	\base, =(0xcf001000)
+		ldr	\irqstat, [\base]
+
+		tst	\irqstat, #PP5002_DMA_OUT_MASK
+		movne	\irqnr, #PP5002_DMA_OUT_IRQ
+		bne	1001f
+
+		tst	\irqstat, #PP5002_GPIO_MASK
+		movne	\irqnr, #PP5002_GPIO_IRQ
+		bne	1001f
+
+		tst	\irqstat, #PP5002_IDE_MASK
+		movne	\irqnr, #PP5002_IDE_IRQ
+		bne	1001f
+
+		tst	\irqstat, #PP5002_SER1_MASK
+		movne	\irqnr, #PP5002_SER1_IRQ
+		bne	1001f
+
+		tst	\irqstat, #PP5002_I2S_MASK
+		movne	\irqnr, #PP5002_I2S_IRQ
+		bne	1001f
+
+		tst	\irqstat, #PP5002_SER0_MASK
+		movne	\irqnr, #PP5002_SER0_IRQ
+		bne	1001f
+
+		tst	\irqstat, #PP5002_TIMER1_MASK
+		movne	\irqnr, #PP5002_TIMER1_IRQ
+		bne	1001f
+
+		b	1001f
+
+1002:
+		/* PP5020 code */
+		ldr 	\base, =(0x64004000)
+		ldr	\irqstat, [\base]
+
+		tst	\irqstat, #PP5020_TIMER1_MASK
+		movne	\irqnr, #PP5020_TIMER1_IRQ
+		bne	1001f
+
+		tst	\irqstat, #PP5020_IDE_MASK
+		movne	\irqnr, #PP5020_IDE_IRQ
+		bne	1001f
+
+		ldr 	\base, =(0x64004100)
+		ldr	\irqstat, [\base]
+
+		tst	\irqstat, #PP5020_GPIO_MASK
+		movne	\irqnr, #PP5020_GPIO_IRQ
+		bne	1001f
+
+		tst	\irqstat, #PP5020_SER0_MASK
+		movne	\irqnr, #PP5020_SER0_IRQ
+		bne	1001f
+
+		tst	\irqstat, #PP5020_SER1_MASK
+		movne	\irqnr, #PP5020_SER1_IRQ
+		bne	1001f
+
+		tst	\irqstat, #PP5020_I2C_MASK
+		movne	\irqnr, #PP5020_I2C_IRQ
+		bne	1001f
+
+1001:
+		.endm
+
+		.macro irq_prio_table
+		.endm
+
 #elif defined(CONFIG_ARCH_C5471)
 #include <asm/arch/hardware.h>
                 .macro  disable_fiq

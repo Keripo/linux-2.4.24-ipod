@@ -249,6 +249,11 @@ ifeq ($(CONFIG_ARCH_C5471), y)
 MACHINE         = c5471
 endif
 
+ifeq ($(CONFIG_ARCH_IPOD),y)
+MACHINE		 = ipod
+TEXTADDR	 = 0x00008000
+endif
+
 export	LDFLAGS LIBGCC MACHINE PROCESSOR TEXTADDR GZFLAGS
 
 # Only set INCDIR if its not already defined above
@@ -288,6 +293,11 @@ endif
 
 ifeq ($(CONFIG_ARCH_NETARM),y)
 HEAD		:= arch/armnommu/kernel/head-arm-netarm.o \
+		   arch/armnommu/kernel/init_task.o
+endif
+
+ifeq ($(CONFIG_ARCH_IPOD),y)
+HEAD		:= arch/armnommu/kernel/head-arm-ipod.o \
 		   arch/armnommu/kernel/init_task.o
 endif
 

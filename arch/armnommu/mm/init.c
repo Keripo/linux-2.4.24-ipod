@@ -391,6 +391,13 @@ static __init void reserve_node_zero(unsigned int bootmap_pfn, unsigned int boot
 		reserve_bootmem_node(pgdat, 0x02000000, 0x00080000);
 	if (machine_is_p720t())
 		reserve_bootmem_node(pgdat, PAGE_OFFSET, 0x00014000);
+
+	/*
+	 * We reserve the first 32k for the interrupt handlers.  A little
+	 * excessive?  Yes.
+	 */
+	if (machine_is_ipod())
+		reserve_bootmem_node(pgdat, PAGE_OFFSET, 0x00008000);
 }
 
 /*

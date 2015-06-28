@@ -56,7 +56,8 @@ choice 'ARM system type' \
 	  Triscend-A7V		CONFIG_ARCH_TA7V \
 	  SWARM			CONFIG_ARCH_SWARM \
 	  Samsung		CONFIG_ARCH_SAMSUNG \
-	  Atmel			CONFIG_ARCH_ATMEL" TI-DSC21
+	  Atmel			CONFIG_ARCH_ATMEL \
+	  iPod			CONFIG_ARCH_IPOD" TI-DSC21
 
 if [ "$CONFIG_ARCH_TA7V" = "y" ]; then
    choice ' Triscend A7V Derivative' \
@@ -477,6 +478,18 @@ if [ "$CONFIG_ARCH_INTEGRATOR" = "y" ]; then
    define_hex FLASH_SIZE 0x02000000
 fi
 
+if [ "$CONFIG_ARCH_IPOD" = "y" ]; then
+   define_bool CONFIG_NO_PGT_CACHE y
+   define_bool CONFIG_CPU_ARM710 y
+   define_bool CONFIG_CPU_ARM7TDMI y
+   define_bool CONFIG_CPU_32 y
+   define_bool CONFIG_CPU_26 n
+   define_hex DRAM_BASE 0x00000000
+   define_hex DRAM_SIZE 0x02000000
+   define_hex FLASH_MEM_BASE 0x10000000
+   define_hex FLASH_SIZE 0x00100000
+fi
+
 if [ "$CONFIG_ARCH_TA7S" = "y" -o "$CONFIG_ARCH_TA7V" = "y" ]; then
    define_bool CONFIG_CPU_ARM710 y
    define_bool CONFIG_CPU_ARM7TDMI y
@@ -547,10 +560,12 @@ if [ "$CONFIG_ARCH_EBSA110" = "y" -o \
      "$CONFIG_ARCH_PERSONAL_SERVER" = "y" -o \
      "$CONFIG_ARCH_CATS" = "y" -o \
      "$CONFIG_ARCH_ATMEL" = "y" -o \
+     "$CONFIG_ARCH_ATMEL" = "y" -o \
      "$CONFIG_ARCH_NETARM" = "y" -o \
      "$CONFIG_ARCH_SAMSUNG" = "y" -o \
      "$CONFIG_ARCH_TA7S" = "y" -o \
-     "$CONFIG_ARCH_TA7V" = "y" ]; then
+     "$CONFIG_ARCH_TA7V" = "y" -o \
+     "$CONFIG_ARCH_IPOD" = "y" ]; then
    bool 'Compiled-in Kernel Boot Parameter' CONFIG_CMDLINE_BOOL
    if [ "$CONFIG_CMDLINE_BOOL" = "y" ]; then
       string 'Default kernel command string' CONFIG_CMDLINE ""
@@ -582,6 +597,8 @@ fi
 if [ "$CONFIG_ARCH_INTEGRATOR" = "y" ]; then
    bool 'PCI support' CONFIG_PCI_INTEGRATOR
    define_bool CONFIG_PCI $CONFIG_PCI_INTEGRATOR
+else
+   define_bool CONFIG_PCI n
 fi
 bool 'm68knommu-style attached romfs in RAM support' CONFIG_RAM_ATTACHED_ROMFS
 endmenu
@@ -669,10 +686,22 @@ source drivers/mtd/Config.in
 source drivers/pnp/Config.in
 source drivers/block/Config.in
 source fs/Config.in
+source drivers/input/Config.in
+
 source drivers/char/Config.in
 source drivers/usb/Config.in
 source drivers/ieee1394/Config.in
 source drivers/message/i2o/Config.in
+
+if [ "$CONFIG_ARCH_IPOD" = "y" ]; then
+   mainmenu_option next_comment
+   comment 'iPod Stuff'
+   tristate "iPod Audio" CONFIG_AUDIO_IPOD
+   tristate "iPod Keypad support" CONFIG_KB_IPOD
+   dep_tristate "iPod Remote support" CONFIG_REMOTE_IPOD $CONFIG_INPUT_KEYBDEV
+   dep_tristate "iPod IDE support" CONFIG_IDE_IPOD $CONFIG_BLK_DEV_IDE
+   endmenu
+fi
 
 #------------------------------------------------------------------------------
 #                     K e r n e l    H a c k i n g
@@ -713,8 +742,9 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
 	  8192KB	CONFIG_UNCACHED_8192" 1024KB
        fi
      fi
+   else
+     bool 'Allow allocating large blocks (> 1MB) of memory' CONFIG_NO_MMU_LARGE_ALLOCS
    fi
-   dep_bool '  Allow allocating large blocks (> 1MB) of memory' CONFIG_NO_MMU_LARGE_ALLOCS $CONFIG_CONTIGUOUS_PAGE_ALLOC
 fi
 
 endmenu

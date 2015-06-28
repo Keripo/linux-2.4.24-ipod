@@ -155,6 +155,8 @@ extern int pvr2fb_init(void);
 extern int pvr2fb_setup(char*);
 extern int sstfb_init(void);
 extern int sstfb_setup(char*);
+extern int ipodfb_init(void);
+extern int ipodfb_setup(char*);
 extern int s3c44b0xfb_init(void);
 extern int s3c44b0xfb_setup(char*);
 #if defined(CONFIG_FB_COBRA5272) && defined(CONFIG_FB_S1D13706)
@@ -178,6 +180,10 @@ static struct {
 	 * use PCI probing
 	 */
 	{ "sbus", sbusfb_init, sbusfb_setup },
+#endif
+
+#ifdef CONFIG_FB_IPOD
+	{ "ipod", ipodfb_init, ipodfb_setup },
 #endif
 
 	/*
@@ -849,6 +855,7 @@ register_framebuffer(struct fb_info *fb_info)
 
 	if (first) {
 		first = 0;
+#define CONFIG_CONSOLE
 #ifdef CONFIG_CONSOLE
 		take_over_console(&fb_con, first_fb_vc, last_fb_vc, fbcon_is_default);
 #endif
