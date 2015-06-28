@@ -1297,6 +1297,9 @@ static int __init i2c_init(void)
 #ifdef CONFIG_I2C_BITVIA
 	extern int i2c_bitvia_init(void);
 #endif
+#ifdef CONFIG_I2C_MCF_GPIO
+	extern int i2c_bit_mcf_gpio_init(void);
+#endif
 
 #ifdef CONFIG_I2C_ALGOPCF
 	extern int i2c_algo_pcf_init(void);	
@@ -1347,6 +1350,9 @@ int __init i2c_init_all(void)
 #endif
 #ifdef CONFIG_I2C_VELLEMAN
 	i2c_bitvelle_init();
+#endif
+#ifdef CONFIG_I2C_MCF_GPIO
+	i2c_bit_mcf_gpio_init();
 #endif
 
 	/* --------------------- pcf -------- */

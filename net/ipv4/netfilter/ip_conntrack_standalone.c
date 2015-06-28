@@ -128,14 +128,17 @@ conntrack_iterate(const struct ip_conntrack_tuple_hash *hash,
 	if (DIRECTION(hash))
 		return 0;
 
-	if ((*upto)++ < offset)
+	if (*upto < offset) {
+		(*upto)++;
 		return 0;
+	}
 
 	newlen = print_conntrack(buffer + *len, hash->ctrack);
 	if (*len + newlen > maxlen)
 		return 1;
-	else *len += newlen;
 
+	*len += newlen;
+	(*upto)++;
 	return 0;
 }
 
@@ -162,7 +165,10 @@ list_conntracks(char *buffer, char **start, off_t offset, int length)
 		unsigned int last_len;
 		struct ip_conntrack_expect *expect
 			= (struct ip_conntrack_expect *)e;
-		if (upto++ < offset) continue;
+		if (upto < offset) {
+			upto++;
+			continue;
+		}
 
 		last_len = len;
 		len += print_expect(buffer + len, expect);
@@ -170,6 +176,7 @@ list_conntracks(char *buffer, char **start, off_t offset, int length)
 			len = last_len;
 			goto finished;
 		}
+		upto++;
 	}
 
  finished:

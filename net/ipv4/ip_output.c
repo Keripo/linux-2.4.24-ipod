@@ -355,7 +355,7 @@ int ip_queue_xmit(struct sk_buff *skb, int ipfragok)
 
 	/* Make sure we can route this packet. */
 	rt = (struct rtable *)__sk_dst_check(sk, 0);
-	if (rt == NULL) {
+	if (rt == NULL || rt->u.dst.obsolete) {
 		u32 daddr;
 
 		/* Use correct destination address if we have options. */
@@ -883,6 +883,10 @@ int ip_fragment(struct sk_buff *skb, int (*output)(struct sk_buff*))
 		/* Connection association is same as pre-frag packet */
 		skb2->nfct = skb->nfct;
 		nf_conntrack_get(skb2->nfct);
+#if defined(CONFIG_BRIDGE) || defined(CONFIG_BRIDGE_MODULE)
+		skb2->nf_bridge = skb->nf_bridge;
+		nf_bridge_get(skb2->nf_bridge);
+#endif
 #ifdef CONFIG_NETFILTER_DEBUG
 		skb2->nf_debug = skb->nf_debug;
 #endif

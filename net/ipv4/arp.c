@@ -834,6 +834,16 @@ int arp_process(struct sk_buff *skb)
 		if (arp->ar_op != htons(ARPOP_REPLY) ||
 		    skb->pkt_type != PACKET_HOST)
 			state = NUD_STALE;
+#ifdef CONFIG_NET_ARP_LIMIT
+		if ((arp_tbl.entries > CONFIG_ARP_LIMIT) && !(n->nud_state & NUD_PERMANENT)) {
+			printk(KERN_ERR "***** ARP limit reached ****\n");
+			printk(KERN_ERR "* ignoring %u.%u.%u.%u *\n", 
+				NIPQUAD(*(u32*)n->primary_key));
+			state = NUD_FAILED;
+			override = 1;
+		} else
+			state |= NUD_PERMANENT;
+#endif
 		neigh_update(n, sha, state, override, 1);
 		neigh_release(n);
 	}

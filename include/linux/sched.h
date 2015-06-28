@@ -26,6 +26,9 @@ extern unsigned long event;
 #include <linux/signal.h>
 #include <linux/securebits.h>
 #include <linux/fs_struct.h>
+#ifdef NO_MM
+#include <linux/wait.h>
+#endif
 
 struct exec_domain;
 
@@ -199,6 +202,9 @@ struct files_struct {
 }
 
 /* Maximum number of active map areas.. This is a random (large) number */
+
+#ifndef NO_MM
+
 #define DEFAULT_MAX_MAP_COUNT	(65536)
 
 extern int max_map_count;
@@ -245,6 +251,52 @@ extern int mmlist_nr;
 	page_table_lock: SPIN_LOCK_UNLOCKED, 		\
 	mmlist:		LIST_HEAD_INIT(name.mmlist),	\
 }
+
+#else /* NO_MM */
+
+struct mm_rblock_struct {
+	int size;
+	int refcount;
+	void * kblock;
+};
+
+struct mm_tblock_struct {
+	struct mm_rblock_struct * rblock;
+	struct mm_tblock_struct * next;
+};
+
+struct mm_struct {
+	/* How many users with user space? */
+	atomic_t mm_users;
+	/* How many references to "struct mm_struct" (users count as 1) */
+	atomic_t mm_count;
+
+	unsigned dumpable:1;
+
+	struct list_head mmlist;		/* List of all active mm's */
+
+	struct rw_semaphore mmap_sem;
+	spinlock_t page_table_lock;
+	unsigned long start_code, end_code, start_data, end_data;
+	unsigned long start_brk, brk, end_brk, start_stack;
+	unsigned long arg_start, arg_end, env_start, env_end;
+	unsigned long rss, total_vm, locked_vm;
+	unsigned long def_flags;
+	unsigned long cpu_vm_mask;
+	struct mm_tblock_struct tblock;
+};
+
+extern int mmlist_nr;
+
+#define INIT_MM(name) {											\
+		mm_users:		ATOMIC_INIT(2),							\
+		mm_count:		ATOMIC_INIT(1),							\
+		mmlist:			LIST_HEAD_INIT(name.mmlist),			\
+		mmap_sem:		__RWSEM_INITIALIZER(name.mmap_sem), 	\
+		page_table_lock:SPIN_LOCK_UNLOCKED,						\
+		tblock:			{NULL, NULL} }
+
+#endif /* NO_MM */
 
 struct signal_struct {
 	atomic_t		count;
@@ -415,7 +467,17 @@ struct task_struct {
 
 /* journalling filesystem info */
 	void *journal_info;
+
+#ifdef CONFIG_SYSCALLTIMER
+	int curr_syscall;
+#endif
 };
+
+#ifdef CONFIG_SYSCALLTIMER
+#define CURR_SYSCALL curr_syscall:	0,
+#else
+#define CURR_SYSCALL
+#endif
 
 /*
  * Per process flags
@@ -508,6 +570,7 @@ extern struct exec_domain	default_exec_domain;
     blocked:		{{0}},						\
     alloc_lock:		SPIN_LOCK_UNLOCKED,				\
     journal_info:	NULL,						\
+    CURR_SYSCALL							\
 }
 
 

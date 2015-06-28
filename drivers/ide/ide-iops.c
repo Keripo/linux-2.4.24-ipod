@@ -112,12 +112,23 @@ static u8 ide_inb (unsigned long port)
 
 static u16 ide_inw (unsigned long port)
 {
+#if CONFIG_ARCH_IXP425
+	u16 val = inw(port);
+	return ((val << 8) | (val >> 8));
+#else
 	return (u16) inw(port);
+#endif
 }
 
 static void ide_insw (unsigned long port, void *addr, u32 count)
 {
+#if CONFIG_ARCH_IXP425
+	u16 *wp = addr;
+	while (count--)
+		*wp++ = ide_inw(port);
+#else
 	return insw(port, addr, count);
+#endif
 }
 
 static u32 ide_inl (unsigned long port)
@@ -142,12 +153,22 @@ static void ide_outbsync (ide_drive_t *drive, u8 addr, unsigned long port)
 
 static void ide_outw (u16 addr, unsigned long port)
 {
+#if CONFIG_ARCH_IXP425
+	outw(((addr << 8) | (addr >> 8)), port);
+#else
 	outw(addr, port);
+#endif
 }
 
 static void ide_outsw (unsigned long port, void *addr, u32 count)
 {
+#if CONFIG_ARCH_IXP425
+	u16 *wp = addr;
+	while (count--)
+		ide_outw(*wp++, port);
+#else
 	outsw(port, addr, count);
+#endif
 }
 
 static void ide_outl (u32 addr, unsigned long port)
@@ -431,8 +452,10 @@ void ide_fix_driveid (struct hd_driveid *id)
 	u16 *stringcast;
 
 #ifdef __mc68000__
+#ifndef NO_MM
 	if (!MACH_IS_AMIGA && !MACH_IS_MAC && !MACH_IS_Q40 && !MACH_IS_ATARI)
 		return;
+#endif
 
 #ifdef M68K_IDE_SWAPW
 	if (M68K_IDE_SWAPW) {	/* fix bus byteorder first */

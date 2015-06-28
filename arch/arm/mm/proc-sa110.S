@@ -573,6 +573,8 @@ cpu_sa1100_name:
 	.asciz	"StrongARM-1100"
 cpu_sa1110_name:
 	.asciz	"StrongARM-1110"
+cpu_ixp1200_name:
+	.asciz	"IXP12xx"
 	.align
 
 	.section ".text.init", #alloc, #execinstr
@@ -699,6 +701,11 @@ cpu_sa1110_info:
 	.long	cpu_sa1110_name
 	.size	cpu_sa1110_info, . - cpu_sa1110_info
 
+cpu_ixp1200_info:
+	.long	cpu_manu_name
+	.long	cpu_ixp1200_name
+	.size	cpu_ixp_1200_info, . - cpu_ixp1200_info
+
 	.type	cpu_arch_name, #object
 cpu_arch_name:
 	.asciz	"armv4"
@@ -750,3 +757,16 @@ __sa1110_proc_info:
 	.long	cpu_sa1110_info
 	.long	sa1100_processor_functions
 	.size	__sa1110_proc_info, . - __sa1110_proc_info
+
+	.type	__ixp1200_proc_info,#object
+__ixp1200_proc_info:
+	.long	0x6901c120
+	.long	0xfffffff0
+	.long	0x00000c0e
+	b	__sa110_setup
+	.long	cpu_arch_name
+	.long	cpu_elf_name
+	.long	HWCAP_SWP | HWCAP_HALF | HWCAP_26BIT | HWCAP_FAST_MULT
+	.long	cpu_ixp1200_info
+	.long	sa110_processor_functions
+	.size	__ixp1200_proc_info, . - __ixp1200_proc_info

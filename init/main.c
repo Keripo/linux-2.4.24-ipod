@@ -81,7 +81,11 @@ extern int irda_device_init(void);
  * with a gcc that is known to be too old from the very beginning.
  */
 #if __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 91)
+#if !defined(CONFIG_V850E) && !defined(CONFIG_NIOS)
 #error Sorry, your GCC is too old. It builds incorrect kernels.
+#else
+#warning Sorry, your GCC is too old. It builds incorrect kernels.
+#endif
 #endif
 
 extern char _stext, _etext;
@@ -166,6 +170,46 @@ void __init calibrate_delay(void)
 {
 	unsigned long ticks, loopbit;
 	int lps_precision = LPS_PREC;
+
+#ifdef FIXED_BOGOMIPS
+	int bogus;
+
+/* FIXED_BOGOMIPS converted to __delay units.  */
+#define FIXED_LOOPS_PER_JIFFY	(unsigned long)(FIXED_BOGOMIPS * (500000 / HZ))
+
+/* The maximum error in FIXED_LOOPS_PER_JIFFY that we will tolerate.  */
+#define FIXED_LPJ_TOLERANCE	(unsigned long)(FIXED_LOOPS_PER_JIFFY * 0.10)
+
+	/* Make sure fixed delay - T% is zero ticks.  */
+	ticks = jiffies;
+	while (ticks == jiffies) /* Synchronize with start of tick */
+		/* nothing */;
+	ticks = jiffies;
+	__delay(FIXED_LOOPS_PER_JIFFY - FIXED_LPJ_TOLERANCE);
+	bogus = (jiffies != ticks);
+
+	if (! bogus) {
+		/* Make sure fixed delay + T% is one tick.  The delay here
+		   is very short because we're actually continuing timing from
+		   the tick synchronization above (we don't resynchronize).  */
+		__delay(2 * FIXED_LPJ_TOLERANCE);
+		bogus = (jiffies != ticks + 1);
+	}
+	
+	if (! bogus) {
+		/* Use the precomputed value.  */
+		loops_per_jiffy = FIXED_LOOPS_PER_JIFFY;
+		printk("Delay loop constant: %lu.%02lu BogoMIPS (precomputed)\n",
+		       (unsigned long)FIXED_BOGOMIPS,
+		       ((unsigned long)(FIXED_BOGOMIPS * 100)) % 100);
+		return;
+	} else {
+		printk("Precomputed BogoMIPS value (%lu.%02lu) inaccurate!\n",
+		       (unsigned long)FIXED_BOGOMIPS,
+		       ((unsigned long)(FIXED_BOGOMIPS * 100)) % 100);
+		/* ... and fall through to normal bogomips calculation.  */
+	}
+#endif /* FIXED_BOGOMIPS */
 
 	loops_per_jiffy = (1<<12);
 
@@ -354,6 +398,7 @@ asmlinkage void __init start_kernel(void)
 {
 	char * command_line;
 	extern char saved_command_line[];
+
 /*
  * Interrupts are still disabled. Do necessary setups, then
  * enable them

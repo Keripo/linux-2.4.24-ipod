@@ -55,6 +55,7 @@ obj-$(CONFIG_FB_CONTROL)          += controlfb.o
 obj-$(CONFIG_FB_PLATINUM)         += platinumfb.o
 obj-$(CONFIG_FB_VALKYRIE)         += valkyriefb.o
 obj-$(CONFIG_FB_CT65550)          += chipsfb.o
+obj-$(CONFIG_FB_CLPS711X)         += clps711xfb.o
 obj-$(CONFIG_FB_CYBER)            += cyberfb.o
 obj-$(CONFIG_FB_CYBER2000)        += cyber2000fb.o
 obj-$(CONFIG_FB_SGIVW)            += sgivwfb.o
@@ -86,6 +87,7 @@ obj-$(CONFIG_FB_PMAGB_B)          += pmagb-b-fb.o
 obj-$(CONFIG_FB_MAXINE)           += maxinefb.o
 obj-$(CONFIG_FB_TX3912)           += tx3912fb.o
 obj-$(CONFIG_FB_AU1100)		  += au1100fb.o fbgen.o
+obj-$(CONFIG_FB_S3C44B0X)	  += s3c44b0xfb.o fbgen.o
 
 subdir-$(CONFIG_STI_CONSOLE)      += sti
 ifeq ($(CONFIG_STI_CONSOLE),y)
@@ -126,12 +128,23 @@ obj-$(CONFIG_FB_SUN3)             += sun3fb.o
 obj-$(CONFIG_FB_BWTWO)            += bwtwofb.o
 obj-$(CONFIG_FB_HGA)              += hgafb.o  
 obj-$(CONFIG_FB_SA1100)           += sa1100fb.o
+obj-$(CONFIG_FB_DRAGON)           += dragonfb.o
 obj-$(CONFIG_FB_VIRTUAL)          += vfb.o  
+obj-$(CONFIG_FB_VIRTUAL_SMALL)    += vfb_small.o
 obj-$(CONFIG_FB_HIT)              += hitfb.o fbgen.o
 obj-$(CONFIG_FB_E1355)            += epson1355fb.o fbgen.o
+obj-$(CONFIG_FB_MQ200)            += mq200fb.o fbgen.o
 obj-$(CONFIG_FB_E1356)            += epson1356fb.o
 obj-$(CONFIG_FB_PVR2)             += pvr2fb.o
 obj-$(CONFIG_FB_VOODOO1)          += sstfb.o
+obj-$(CONFIG_FB_MC68X328)         += mc68x328fb.o
+
+# ATTENTION! The implementation of the driver for the EPSON S1D13706
+# on uClinux is _really_ experimental, currently! Be warned!
+ifeq ($(CONFIG_FB_COBRA5272),y)
+obj-$(CONFIG_FB_S1D13706)         += s1d13706fb.o fbgen.o
+endif
+
 
 # Generic Low Level Drivers
 

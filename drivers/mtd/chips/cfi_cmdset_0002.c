@@ -18,6 +18,7 @@
 #include <linux/sched.h>
 #include <asm/io.h>
 #include <asm/byteorder.h>
+#include <asm/unaligned.h>
 
 #include <linux/errno.h>
 #include <linux/slab.h>
@@ -511,13 +512,18 @@ static int do_write_oneword(struct map_info *map, struct flchip *chip, unsigned 
 	   or tells us why it failed. */        
 	dq6 = CMD(1<<6);
 	dq5 = CMD(1<<5);
-	timeo = jiffies + (HZ/1000); /* setting timeout to 1ms for now */
+	timeo = jiffies + HZ; /* setting timeout to 1s for safety */
 		
 	oldstatus = cfi_read(map, adr);
 	status = cfi_read(map, adr);
 
-	while( (status & dq6) != (oldstatus & dq6) && 
-	       (status & dq5) != dq5 &&
+	/*
+	 * some toshiba flash acts weird with the toggle bits, so
+	 * we check the datum as well
+	 */
+	while( (status != datum ||
+	           ((status & dq6) != (oldstatus & dq6) && 
+	           (status & dq5) != dq5)) &&
 	       !time_after(jiffies, timeo) ) {
 
 		if (need_resched()) {
@@ -541,7 +547,9 @@ static int do_write_oneword(struct map_info *map, struct flchip *chip, unsigned 
 			status = cfi_read(map, adr);
 		    
 			if ( (oldstatus & 0x00FF) == (status & 0x00FF) ) {
+#ifndef CONFIG_MTD_SNAPGEODE
 				printk(KERN_WARNING "Warning: DQ5 raised while program operation was in progress, however operation completed OK\n" );
+#endif
 			} else { 
 				/* DQ5 is active so we can do a reset and stop the erase */
 				cfi_write(map, CMD(0xF0), chip->start);
@@ -633,9 +641,9 @@ static int cfi_amdstd_write (struct mtd_info *mtd, loff_t to , size_t len, size_
 		if (cfi_buswidth_is_1()) {
 			datum = *(__u8*)buf;
 		} else if (cfi_buswidth_is_2()) {
-			datum = *(__u16*)buf;
+			datum = get_unaligned((__u16*)buf);
 		} else if (cfi_buswidth_is_4()) {
-			datum = *(__u32*)buf;
+			datum = get_unaligned((__u32*)buf);
 		} else {
 			return -EINVAL;
 		}

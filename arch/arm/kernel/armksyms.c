@@ -240,14 +240,25 @@ EXPORT_SYMBOL_NOVERS(__umodsi3);
 EXPORT_SYMBOL_NOVERS(abort);
 
 	/* bitops */
-EXPORT_SYMBOL(set_bit);
-EXPORT_SYMBOL(test_and_set_bit);
-EXPORT_SYMBOL(clear_bit);
-EXPORT_SYMBOL(test_and_clear_bit);
-EXPORT_SYMBOL(change_bit);
-EXPORT_SYMBOL(test_and_change_bit);
-EXPORT_SYMBOL(find_first_zero_bit);
-EXPORT_SYMBOL(find_next_zero_bit);
+EXPORT_SYMBOL(_set_bit_le);
+EXPORT_SYMBOL(_test_and_set_bit_le);
+EXPORT_SYMBOL(_clear_bit_le);
+EXPORT_SYMBOL(_test_and_clear_bit_le);
+EXPORT_SYMBOL(_change_bit_le);
+EXPORT_SYMBOL(_test_and_change_bit_le);
+EXPORT_SYMBOL(_find_first_zero_bit_le);
+EXPORT_SYMBOL(_find_next_zero_bit_le);
+
+#ifdef __ARMEB__
+EXPORT_SYMBOL(_set_bit_be);
+EXPORT_SYMBOL(_test_and_set_bit_be);
+EXPORT_SYMBOL(_clear_bit_be);
+EXPORT_SYMBOL(_test_and_clear_bit_be);
+EXPORT_SYMBOL(_change_bit_be);
+EXPORT_SYMBOL(_test_and_change_bit_be);
+EXPORT_SYMBOL(_find_first_zero_bit_be);
+EXPORT_SYMBOL(_find_next_zero_bit_be);
+#endif
 
 	/* elf */
 EXPORT_SYMBOL(elf_platform);

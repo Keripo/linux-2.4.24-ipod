@@ -27,6 +27,7 @@ comment 'User Modules And Translation Layers'
    fi
    dep_tristate '  FTL (Flash Translation Layer) support' CONFIG_FTL $CONFIG_MTD
    dep_tristate '  NFTL (NAND Flash Translation Layer) support' CONFIG_NFTL $CONFIG_MTD
+   dep_tristate '  INFTL (Inverse NAND Flash Translation Layer) support' CONFIG_INFTL $CONFIG_MTD
    if [ "$CONFIG_NFTL" = "y" -o "$CONFIG_NFTL" = "m" ]; then
       bool '    Write support for NFTL (BETA)' CONFIG_NFTL_RW
    fi

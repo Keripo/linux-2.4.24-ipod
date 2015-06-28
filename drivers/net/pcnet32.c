@@ -55,6 +55,10 @@ DRV_NAME ".c:v" DRV_VERSION " " DRV_RELDATE " tsbogend@alpha.franken.de\n";
 #include <linux/skbuff.h>
 #include <linux/spinlock.h>
 
+#ifdef CONFIG_LEDMAN
+#include <linux/ledman.h>
+#endif
+
 /*
  * PCI device identifiers for "new style" Linux PCI Device Drivers
  */
@@ -1064,6 +1068,11 @@ pcnet32_start_xmit(struct sk_buff *skb, struct net_device *dev)
     int entry;
     unsigned long flags;
 
+#ifdef CONFIG_LEDMAN
+    ledman_cmd(LEDMAN_CMD_SET,
+	(dev->name[3] == '0') ? LEDMAN_LAN1_TX : LEDMAN_LAN2_TX);
+#endif
+
     if (pcnet32_debug > 3) {
 	printk(KERN_DEBUG "%s: pcnet32_start_xmit() called, csr0 %4.4x.\n",
 	       dev->name, lp->a.read_csr(ioaddr, 0));
@@ -1276,6 +1285,11 @@ pcnet32_rx(struct net_device *dev)
 {
     struct pcnet32_private *lp = dev->priv;
     int entry = lp->cur_rx & RX_RING_MOD_MASK;
+
+#ifdef CONFIG_LEDMAN
+    ledman_cmd(LEDMAN_CMD_SET,
+	(dev->name[3] == '0') ? LEDMAN_LAN1_RX : LEDMAN_LAN2_RX);
+#endif
 
     /* If we own the next entry, it's a new packet. Send it up. */
     while ((short)le16_to_cpu(lp->rx_ring[entry].status) >= 0) {

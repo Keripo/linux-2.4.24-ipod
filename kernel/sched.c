@@ -534,6 +534,11 @@ asmlinkage void schedule_tail(struct task_struct *prev)
 	__schedule_tail(prev);
 }
 
+#ifdef CONFIG_SYSCALLTIMER
+extern void timepeg_schedule_switchout(void);
+extern void timepeg_schedule_switchin(void);
+#endif
+
 /*
  *  'schedule()' is the scheduler function. It's a very simple and nice
  * scheduler: it's not perfect, but certainly works for most things.
@@ -692,7 +697,13 @@ repeat_schedule:
 	 * This just switches the register state and the
 	 * stack.
 	 */
+#ifdef CONFIG_SYSCALLTIMER
+	timepeg_schedule_switchout();
+#endif
 	switch_to(prev, next, prev);
+#ifdef CONFIG_SYSCALLTIMER
+	timepeg_schedule_switchin();
+#endif
 	__schedule_tail(prev);
 
 same_process:

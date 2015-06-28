@@ -23,10 +23,11 @@ obj-y	 += mem.o tty_io.o n_tty.o tty_ioctl.o raw.o pty.o misc.o random.o
 
 export-objs     :=	busmouse.o console.o keyboard.o sysrq.o \
 			misc.o pty.o random.o selection.o serial.o \
+			ledman.o \
 			sonypi.o tty_io.o tty_ioctl.o generic_serial.o \
 			au1000_gpio.o hp_psaux.o nvram.o scx200.o fetchop.o
 
-mod-subdirs	:=	joystick ftape drm drm-4.0 pcmcia
+mod-subdirs	:=	joystick ftape drm drm-4.0 pcmcia can4linux
 
 list-multi	:=	
 
@@ -66,6 +67,15 @@ ifeq ($(ARCH),m68k)
    SERIAL   =
 endif
 
+ifeq ($(ARCH),m68knommu)
+   ifdef CONFIG_68328_SERIAL
+       KEYBD  =
+       SERIAL = 68328serial.o
+   else
+       KEYBD =
+   endif
+endif
+
 ifeq ($(ARCH),parisc)
    ifdef CONFIG_GSC_PS2
       KEYBD   = hp_psaux.o hp_keyb.o
@@ -102,10 +112,19 @@ endif
 
 ifeq ($(ARCH),arm)
   ifneq ($(CONFIG_PC_KEYMAP),y)
-    KEYMAP   =
+    KEYMAP   :=
   endif
   ifneq ($(CONFIG_PC_KEYB),y)
-    KEYBD    =
+    KEYBD    :=
+  endif
+  ifeq ($(CONFIG_KMI_KEYB),y)
+    KEYBD    := amba_kmi_keyb.o
+  endif
+endif
+
+ifeq ($(ARCH),armnommu)
+  ifneq ($(CONFIG_PC_KEYB),y)
+    KEYBD    :=
   endif
 endif
 
@@ -134,6 +153,33 @@ ifeq ($(ARCH),sh)
   KEYMAP   = defkeymap.o
   KEYBD    =
   CONSOLE  = console.o
+  endif
+  ifeq ($(CONFIG_SH_KEYWEST),y)
+    ifdef CONFIG_DUMMY_CONSOLE
+      ifdef CONFIG_FB
+        KEYMAP  = defkeymap.o
+        CONSOLE  = console.o
+      else
+        KEYMAP  = defkeymap.o
+#       CONSOLE  = console_sci.o
+        CONSOLE  = console.o
+      endif
+    else
+      KEYMAP  = defkeymap.o
+      CONSOLE  = console.o
+    endif
+    ifdef CONFIG_HD64465
+      KEYBD   = pc_keyb_hd64465.o
+    else
+      KEYBD   = pc_keyb.o
+    endif
+  endif
+endif
+
+ifeq ($(ARCH),niosnommu)
+  ifneq ($(CONFIG_PC_KEYB),y)
+    KEYBD    :=
+    KEYMAP   := defkeymap.o
   endif
 endif
 
@@ -179,6 +225,46 @@ else
   obj-$(CONFIG_PCI) += keyboard.o $(KEYMAP)
 endif
 
+
+#
+# uClinux drivers
+#
+obj-$(CONFIG_68328_SERIAL) += 68328serial.o
+obj-$(CONFIG_SERIAL_DSC21) += serial_dsc21.o
+obj-$(CONFIG_SERIAL_C5471) += serial_c5471.o
+obj-$(CONFIG_SERIAL_ATMEL) += serial_atmel.o
+obj-$(CONFIG_SERIAL_NETARM) += serial_netarm.o
+obj-$(CONFIG_SERIAL_SAMSUNG) += serial_samsung.o
+obj-$(CONFIG_SERIAL_S3C2500) += serial_s3c2500.o
+obj-$(CONFIG_SERIAL_S3C3410) += serial_s3c3410.o
+obj-$(CONFIG_SERIAL_S3C44B0X) += serial_s3c44b0x.o
+obj-$(CONFIG_SERIAL_S3C4530) += serial_s3c4530.o
+obj-$(CONFIG_SERIAL_CNXT) += cnxtserial.o
+obj-$(CONFIG_SERIAL_KS8695) += serial_ks8695.o generic_serial.o
+obj-$(CONFIG_V850E_UART) += v850e_uart.o generic_serial.o
+obj-$(CONFIG_COLDFIRE_SERIAL) += mcfserial.o
+obj-$(CONFIG_COLDFIRE_USB) += mcf_usb.o
+obj-$(CONFIG_MCF_QSPI) += mcf_qspi.o
+obj-$(CONFIG_LEDMAN) += ledman.o
+obj-$(CONFIG_LCDTXT) += lcdtxt.o
+obj-$(CONFIG_68328_DIGI) += mc68328digi.o
+obj-$(CONFIG_MCFWATCHDOG) += mcfwatchdog.o
+obj-$(CONFIG_M5249AUDIO) += m5249audio.o
+obj-$(CONFIG_M5272AUDIO) += m5272audio.o
+obj-$(CONFIG_DRAGONIX_SPI) += dragonixspi.o
+obj-$(CONFIG_DS1302) += ds1302.o
+obj-$(CONFIG_DRAGEN2_EEPROM) += de2spi.o de2eeprom.o
+obj-$(CONFIG_DRAGEN2_TS) += de2spi.o de2ts.o
+obj-$(CONFIG_DRAGEN2_FPGA) += de2fpga.o
+obj-$(CONFIG_NIOS_SERIAL) += NIOSserial.o
+obj-$(CONFIG_NIOS_SPI) += spi.o
+obj-$(CONFIG_XYMEM) += xymem.o
+obj-$(CONFIG_AU1X00_SERIAL_CONSOLE) += au1x00-serial.o
+obj-$(CONFIG_SERIAL_BF535) += bf535_serial.o
+obj-$(CONFIG_SERIAL_BF533) += bf533_serial.o
+obj-$(CONFIG_CAN4LINUX) += can4linux/Can.o
+
+
 obj-$(CONFIG_HIL) += hp_keyb.o
 obj-$(CONFIG_MAGIC_SYSRQ) += sysrq.o
 obj-$(CONFIG_ATARI_DSP56K) += dsp56k.o
@@ -215,6 +301,7 @@ obj-$(CONFIG_SGI_L1_SERIAL) += sn_serial.o
 
 subdir-$(CONFIG_RIO) += rio
 subdir-$(CONFIG_INPUT) += joystick
+subdir-$(CONFIG_CAN4LINUX) += can4linux
 
 obj-$(CONFIG_ATIXL_BUSMOUSE) += atixlmouse.o
 obj-$(CONFIG_LOGIBUSMOUSE) += logibusmouse.o
@@ -238,6 +325,7 @@ obj-$(CONFIG_ATARIMOUSE) += atarimouse.o
 obj-$(CONFIG_ADBMOUSE) += adbmouse.o
 obj-$(CONFIG_PC110_PAD) += pc110pad.o
 obj-$(CONFIG_MK712_MOUSE) += mk712.o
+obj-$(CONFIG_MBA44B0_TOUCH) += mba44b0touch.o
 obj-$(CONFIG_RTC) += rtc.o
 obj-$(CONFIG_GEN_RTC) += genrtc.o
 obj-$(CONFIG_EFI_RTC) += efirtc.o
@@ -275,6 +363,8 @@ obj-$(CONFIG_DZ) += dz.o
 obj-$(CONFIG_NWBUTTON) += nwbutton.o
 obj-$(CONFIG_NWFLASH) += nwflash.o
 obj-$(CONFIG_SCx200_GPIO) += scx200_gpio.o scx200.o
+obj-$(CONFIG_C5471_GIO) += gio_c5471.o
+
 
 # Only one watchdog can succeed. We probe the hardware watchdog
 # drivers first, then the softdog driver.  This means if your hardware
@@ -305,6 +395,12 @@ obj-$(CONFIG_SCx200_WDT) += scx200_wdt.o
 obj-$(CONFIG_WAFER_WDT) += wafer5823wdt.o
 obj-$(CONFIG_SOFT_WATCHDOG) += softdog.o
 obj-$(CONFIG_AMD7XX_TCO) += amd7xx_tco.o
+obj-$(CONFIG_C5471_WDT) += wdt_c5471.o
+
+# Support for Xilinx GPIO driver
+mod-subdirs += xilinx_gpio
+subdir-$(CONFIG_XILINX_GPIO) += xilinx_gpio
+obj-$(CONFIG_XILINX_GPIO) += xilinx_gpio/xilinx_gpio.o
 
 subdir-$(CONFIG_MWAVE) += mwave
 ifeq ($(CONFIG_MWAVE),y)

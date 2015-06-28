@@ -29,6 +29,7 @@
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
+#include <asm/kgdb.h>
 
 #include "ptrace.h"
 
@@ -199,6 +200,13 @@ NORET_TYPE void die(const char *str, struct pt_regs *regs, int err)
 		dump_instr(regs);
 	}
 
+#ifdef	CONFIG_KGDB
+	/* REVISIT: I'm not sure where to place this call to do_kgdb. So it's here for now... */
+	if (kgdb_active()) {
+		do_kgdb(regs, SIGKILL); /* SIGKILL sure seems appropriate here. : ) */
+	}
+#endif
+
 	spin_unlock_irq(&die_lock);
 	do_exit(SIGSEGV);
 }
@@ -223,6 +231,18 @@ asmlinkage void do_undefinstr(int address, struct pt_regs *regs, int mode)
 	regs->ARM_pc -= thumb_mode(regs) ? 2 : 4;
 	pc = (unsigned long *)instruction_pointer(regs);
 
+#ifdef CONFIG_KGDB
+	/* 
+	 * If we're not in user mode, we must have hit a breakpoint 
+	 * (or something * else has gone terribly wrong). 
+	 * So check in with do_kgdb...
+	 */
+	if (!user_mode(regs) && kgdb_active()) {
+		do_kgdb(regs, SIGTRAP);
+		return;
+	}
+#endif
+
 #ifdef CONFIG_DEBUG_USER
 	printk(KERN_INFO "%s (%d): undefined instruction: pc=%p\n",
 		current->comm, current->pid, pc);
@@ -239,6 +259,7 @@ asmlinkage void do_undefinstr(int address, struct pt_regs *regs, int mode)
 
 	force_sig_info(SIGILL, &info, current);
 
+
 	die_if_kernel("Oops - undefined instruction", regs, mode);
 }
 
@@ -251,6 +272,12 @@ asmlinkage void do_excpt(int address, struct pt_regs *regs, int mode)
 	printk(KERN_INFO "%s (%d): address exception: pc=%08lx\n",
 		current->comm, current->pid, instruction_pointer(regs));
 	dump_instr(regs);
+#endif
+#ifdef CONFIG_KGDB
+	/* REVISIT: We don't need this since we only support CONFIG_CPU_32 case. */
+	if (!user_mode(regs) && kgdb_active()) {
+		do_kgdb(regs, SIGBUS);
+	}
 #endif
 
 	current->thread.error_code = 0;
@@ -287,7 +314,7 @@ asmlinkage void bad_mode(struct pt_regs *regs, int reason, int proc_mode)
 
 	console_verbose();
 
-	printk(KERN_CRIT "Bad mode in %s handler detected: mode %s\n",
+	printk("Bad mode in %s handler detected: mode %s\n",
 		handler[reason], processor_modes[proc_mode]);
 
 	/*
@@ -348,6 +375,11 @@ asmlinkage int arm_syscall(int no, struct pt_regs *regs)
 
 	switch (no & 0xffff) {
 	case 0: /* branch through 0 */
+#ifdef CONFIG_KGDB
+		if (!user_mode(regs) && kgdb_active()) {
+			do_kgdb(regs, -1);
+		}
+#endif
 		info.si_signo = SIGSEGV;
 		info.si_errno = 0;
 		info.si_code  = SEGV_MAPERR;
@@ -422,6 +454,11 @@ asmlinkage int arm_syscall(int no, struct pt_regs *regs)
 		c_backtrace(regs->ARM_fp, processor_mode(regs));
 	}
 #endif
+#ifdef CONFIG_KGDB
+	if (!user_mode(regs) && kgdb_active()) {
+		do_kgdb(regs, SIGILL);
+	}
+#endif
 	info.si_signo = SIGILL;
 	info.si_errno = 0;
 	info.si_code  = ILL_ILLTRP;
@@ -455,6 +492,11 @@ baddataabort(int code, unsigned long instr, struct pt_regs *regs)
 		current->pid, current->comm, code, instr);
 	dump_instr(regs);
 	show_pte(current->mm, addr);
+#endif
+#ifdef CONFIG_KGDB
+	if (!user_mode(regs) && kgdb_active()) {
+		do_kgdb(regs, SIGILL);
+	}
 #endif
 
 	info.si_signo = SIGILL;
@@ -510,6 +552,17 @@ void abort(void)
 	panic("Oops failed to kill thread");
 }
 
+#ifdef CONFIG_KGDB
+static int kgdb_halt = 1;
+
+void __init nohalt_setup(char *line)
+{
+	kgdb_halt = 0;
+}
+
+__setup("nohalt", nohalt_setup);
+#endif
+
 void __init trap_init(void)
 {
 	extern void __trap_init(unsigned long);
@@ -521,5 +574,14 @@ void __init trap_init(void)
 			base);
 #ifdef CONFIG_CPU_32
 	modify_domain(DOMAIN_USER, DOMAIN_CLIENT);
+#endif
+
+	/*
+	 * This is the earliest we can bkpt for now as we rely on
+	 * undefined instruction trap to hook into KGDB.
+	 */
+#ifdef CONFIG_KGDB
+	if(kgdb_halt)
+		breakpoint();
 #endif
 }

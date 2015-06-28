@@ -92,6 +92,17 @@ struct nf_conntrack {
 struct nf_ct_info {
 	struct nf_conntrack *master;
 };
+
+#if defined(CONFIG_BRIDGE) || defined(CONFIG_BRIDGE_MODULE)
+struct nf_bridge_info {
+	atomic_t use;
+	struct net_device *physindev;
+	struct net_device *physoutdev;
+	unsigned int mask;
+	unsigned long hh[16 / sizeof(unsigned long)];
+};
+#endif
+
 #endif
 
 struct sk_buff_head {
@@ -207,6 +218,9 @@ struct sk_buff {
 	struct nf_ct_info *nfct;
 #ifdef CONFIG_NETFILTER_DEBUG
         unsigned int nf_debug;
+#endif
+#if defined(CONFIG_BRIDGE) || defined(CONFIG_BRIDGE_MODULE)
+	struct nf_bridge_info	*nf_bridge;	/* Saved data about a bridged frame - see br_netfilter.c */
 #endif
 #endif /*CONFIG_NETFILTER*/
 
@@ -1169,6 +1183,20 @@ nf_conntrack_get(struct nf_ct_info *nfct)
 	if (nfct)
 		atomic_inc(&nfct->master->use);
 }
+
+#if defined(CONFIG_BRIDGE) || defined(CONFIG_BRIDGE_MODULE)
+static inline void nf_bridge_put(struct nf_bridge_info *nf_bridge)
+{
+	if (nf_bridge && atomic_dec_and_test(&nf_bridge->use))
+		kfree(nf_bridge);
+}
+static inline void nf_bridge_get(struct nf_bridge_info *nf_bridge)
+{
+	if (nf_bridge)
+		atomic_inc(&nf_bridge->use);
+}
+#endif
+
 #endif
 
 #endif	/* __KERNEL__ */

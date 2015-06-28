@@ -30,8 +30,29 @@ ipchains-objs		:= $(ip_nf_compat-objs) ipchains_core.o
 
 # connection tracking
 obj-$(CONFIG_IP_NF_CONNTRACK) += ip_conntrack.o
+ 
+# H.323 support
+obj-$(CONFIG_IP_NF_H323) += ip_conntrack_h323.o
+obj-$(CONFIG_IP_NF_NAT_H323) += ip_nat_h323.o
+ifdef CONFIG_IP_NF_NAT_H323
+	export-objs += ip_conntrack_h323.o
+endif
+
+
+# connection tracking protocol helpers
+obj-$(CONFIG_IP_NF_CT_PROTO_GRE) += ip_conntrack_proto_gre.o
+ifdef CONFIG_IP_NF_CT_PROTO_GRE
+	export-objs += ip_conntrack_proto_gre.o
+endif
+
+# NAT protocol helpers
+obj-$(CONFIG_IP_NF_NAT_PROTO_GRE) += ip_nat_proto_gre.o
 
 # connection tracking helpers
+obj-$(CONFIG_IP_NF_PPTP) += ip_conntrack_pptp.o
+ifdef CONFIG_IP_NF_NAT_PPTP
+	export-objs += ip_conntrack_pptp.o
+endif
 obj-$(CONFIG_IP_NF_AMANDA) += ip_conntrack_amanda.o
 ifdef CONFIG_IP_NF_AMANDA
 	export-objs += ip_conntrack_amanda.o
@@ -49,6 +70,7 @@ ifdef CONFIG_IP_NF_IRC
 endif
 
 # NAT helpers 
+obj-$(CONFIG_IP_NF_NAT_PPTP) += ip_nat_pptp.o
 obj-$(CONFIG_IP_NF_NAT_AMANDA) += ip_nat_amanda.o
 obj-$(CONFIG_IP_NF_NAT_TFTP) += ip_nat_tftp.o
 obj-$(CONFIG_IP_NF_NAT_FTP) += ip_nat_ftp.o

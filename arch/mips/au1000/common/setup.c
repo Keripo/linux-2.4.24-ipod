@@ -73,6 +73,14 @@ extern phys_t (*fixup_bigphys_addr)(phys_t phys_addr, phys_t size);
 static phys_t au1500_fixup_bigphys_addr(phys_t phys_addr, phys_t size);
 #endif
 
+#ifdef CONFIG_CPU_HAS_WB
+void (*__wbflush) (void);
+void au1000_wbflush(void)
+{
+	__asm__ volatile ("sync");
+}
+#endif
+
 void __init au1x00_setup(void)
 {
 	char *argptr;
@@ -118,6 +126,9 @@ void __init au1x00_setup(void)
 	// au1000 does not support vra, au1500 and au1100 do
 	strcat(argptr, " au1000_audio=vra");
 	argptr = prom_getcmdline();
+#endif
+#ifdef CONFIG_CPU_HAS_WB
+	__wbflush = au1000_wbflush;
 #endif
 	_machine_restart = au1000_restart;
 	_machine_halt = au1000_halt;

@@ -8,7 +8,13 @@ comment 'Frame-buffer support'
 bool 'Support for frame buffer devices (EXPERIMENTAL)' CONFIG_FB
 
 if [ "$CONFIG_FB" = "y" ]; then
-   define_bool CONFIG_DUMMY_CONSOLE y
+   if [ "$CONFIG_SUPERH" = "y" ]; then
+      if [ "$CONFIG_SH_KEYWEST" = "y" ]; then
+         bool '  MediaQ MQ-200 support' CONFIG_FB_MQ200
+      fi
+   else
+	  define_bool CONFIG_DUMMY_CONSOLE y
+   fi
    if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
       if [ "$CONFIG_PCI" = "y" ]; then
          tristate '  nVidia Riva support (EXPERIMENTAL)' CONFIG_FB_RIVA
@@ -29,14 +35,17 @@ if [ "$CONFIG_FB" = "y" ]; then
       if [ "$CONFIG_PCI" = "y" ]; then
          tristate '  Permedia3 support (EXPERIMENTAL)' CONFIG_FB_PM3
       fi
+      if [ "$CONFIG_FB_COBRA5272" = "y" ]; then
+         tristate '  EPSON S1D13706 Support (EXPERIMENTAL)' CONFIG_FB_S1D13706
+      fi
    fi
    if [ "$CONFIG_ARCH_ACORN" = "y" ]; then
       bool '  Acorn VIDC support' CONFIG_FB_ACORN
    fi
+   dep_bool '  Acorn VIDC support' CONFIG_FB_ACORN $CONFIG_ARCH_ACORN
+   dep_bool '  CLPS711X LCD support' CONFIG_FB_CLPS711X $CONFIG_ARCH_CLPS711X
    dep_tristate '  Cyber2000 support' CONFIG_FB_CYBER2000 $CONFIG_PCI
-   if [ "$CONFIG_ARCH_SA1100" = "y" ]; then
-      bool '  SA-1100 LCD support' CONFIG_FB_SA1100
-   fi
+   dep_bool '  SA-1100 LCD support' CONFIG_FB_SA1100 $CONFIG_ARCH_SA1100
    if [ "$CONFIG_APOLLO" = "y" ]; then
       define_bool CONFIG_FB_APOLLO y
    fi
@@ -184,6 +193,16 @@ if [ "$CONFIG_FB" = "y" ]; then
 	 fi
       fi
    fi
+   if [ "$ARCH" = "m68knommu" ]; then
+      bool '  Dragonball frame buffer' CONFIG_FB_MC68X328
+      if [ "$CONFIG_FB_MC68X328" = "y" ]; then
+         choice 'Screen type' "\
+           Monochrome,1=White,0=Black CONFIG_FB_MC68X328_MONO10 \
+           Monochrome,0=White,1=Black CONFIG_FB_MC68X328_MONO01 \
+           Colour CONFIG_FB_MC68X328_COLOUR \
+           " Monochrome,1=White,0=Black
+      fi
+   fi
    if [ "$CONFIG_SPARC32" = "y" -o "$CONFIG_SPARC64" = "y" ]; then
       bool '  SBUS and UPA framebuffers' CONFIG_FB_SBUS
       if [ "$CONFIG_FB_SBUS" != "n" ]; then
@@ -231,8 +250,12 @@ if [ "$CONFIG_FB" = "y" ]; then
    if [ "$CONFIG_NINO" = "y" ]; then
       bool '  TMPTX3912/PR31700 frame buffer support' CONFIG_FB_TX3912
    fi
+   if [ "$CONFIG_CPU_S3C44B0X" = "y" ]; then
+      tristate '  Samsung S3C44B0X built-in LCD controller frame buffer support' CONFIG_FB_S3C44B0X
+   fi
    if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
       tristate '  Virtual Frame Buffer support (ONLY FOR TESTING!) (EXPERIMENTAL)' CONFIG_FB_VIRTUAL
+      tristate '  Virtual Frame Buffer support (small 1KB VRAM) (ONLY FOR TESTING!) (EXPERIMENTAL)' CONFIG_FB_VIRTUAL_SMALL
    fi
 
    bool '  Advanced low level driver options' CONFIG_FBCON_ADVANCED

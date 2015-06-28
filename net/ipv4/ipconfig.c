@@ -107,7 +107,7 @@
  */
 int ic_set_manually __initdata = 0;		/* IPconfig parameters set manually */
 
-int ic_enable __initdata = 0;			/* IP config enabled? */
+int ic_enable __initdata = 1;			/* IP config enabled? */
 
 /* Protocol choice */
 int ic_proto_enabled __initdata = 0
@@ -178,7 +178,7 @@ static int __init ic_open_devs(void)
 	struct ic_device *d, **last;
 	struct net_device *dev;
 	unsigned short oflags;
-
+ 
 	last = &ic_first_dev;
 	rtnl_shlock();
 	for (dev = dev_base; dev; dev = dev->next) {
@@ -230,6 +230,7 @@ static int __init ic_open_devs(void)
 			printk(KERN_ERR "IP-Config: No network devices available.\n");
 		return -1;
 	}
+
 	return 0;
 }
 
@@ -250,6 +251,7 @@ static void __init ic_close_devs(void)
 		kfree(d);
 	}
 	rtnl_shunlock();
+
 }
 
 /*
@@ -259,9 +261,11 @@ static void __init ic_close_devs(void)
 static inline void
 set_sockaddr(struct sockaddr_in *sin, u32 addr, u16 port)
 {
+
 	sin->sin_family = AF_INET;
 	sin->sin_addr.s_addr = addr;
 	sin->sin_port = port;
+
 }
 
 static int __init ic_dev_ioctl(unsigned int cmd, struct ifreq *arg)
@@ -273,6 +277,7 @@ static int __init ic_dev_ioctl(unsigned int cmd, struct ifreq *arg)
 	res = devinet_ioctl(cmd, arg);
 	set_fs(oldfs);
 	return res;
+
 }
 
 static int __init ic_route_ioctl(unsigned int cmd, struct rtentry *arg)
@@ -768,6 +773,8 @@ static void __init ic_do_bootp_ext(u8 *ext)
 					memcpy(&ic_nameservers[i], ext+1+4*i, 4);
 			}
 			break;
+	}
+	switch (*ext++) {
 		case 12:	/* Host name */
 			ic_bootp_string(system_utsname.nodename, ext+1, *ext, __NEW_UTS_LEN);
 			ic_host_name_set = 1;
@@ -775,6 +782,8 @@ static void __init ic_do_bootp_ext(u8 *ext)
 		case 15:	/* Domain name (DNS) */
 			ic_bootp_string(ic_domain, ext+1, *ext, sizeof(ic_domain));
 			break;
+	}
+	switch (*ext++) {
 		case 17:	/* Root path */
 			if (!root_server_path[0])
 				ic_bootp_string(root_server_path, ext+1, *ext, sizeof(root_server_path));
@@ -1172,6 +1181,9 @@ static int __init ip_auto_config(void)
 {
 	unsigned long jiff;
 	u32 addr;
+#ifdef IPCONFIG_DYNAMIC
+	int retries = CONF_OPEN_RETRIES;
+#endif
 
 #ifdef CONFIG_PROC_FS
 	proc_net_create("pnp", 0, pnp_get_info);
@@ -1213,9 +1225,6 @@ static int __init ip_auto_config(void)
 #endif
 	    ic_first_dev->next) {
 #ifdef IPCONFIG_DYNAMIC
-
-		int retries = CONF_OPEN_RETRIES;
-
 		if (ic_dynamic() < 0) {
 			ic_close_devs();
 
@@ -1381,11 +1390,13 @@ static int __init ip_auto_config_setup(char *addrs)
 
 	/* Parse the whole string */
 	ip = addrs;
+
 	while (ip && *ip) {
 		if ((cp = strchr(ip, ':')))
 			*cp++ = '\0';
 		if (strlen(ip) > 0) {
 			DBG(("IP-Config: Parameter #%d: `%s'\n", num, ip));
+
 			switch (num) {
 			case 0:
 				if ((ic_myaddr = in_aton(ip)) == INADDR_ANY)
@@ -1395,14 +1406,18 @@ static int __init ip_auto_config_setup(char *addrs)
 				if ((ic_servaddr = in_aton(ip)) == INADDR_ANY)
 					ic_servaddr = INADDR_NONE;
 				break;
+			}
+			switch(num){
 			case 2:
 				if ((ic_gateway = in_aton(ip)) == INADDR_ANY)
 					ic_gateway = INADDR_NONE;
 				break;
 			case 3:
-				if ((ic_netmask = in_aton(ip)) == INADDR_ANY)
+				if ((ic_netmask = in_aton(ip)) == 0x0)
 					ic_netmask = INADDR_NONE;
 				break;
+			}
+			switch(num){
 			case 4:
 				if ((dp = strchr(ip, '.'))) {
 					*dp++ = '\0';
@@ -1416,11 +1431,12 @@ static int __init ip_auto_config_setup(char *addrs)
 			case 5:
 				strncpy(user_dev_name, ip, IFNAMSIZ);
 				user_dev_name[IFNAMSIZ-1] = '\0';
-				break;
+				break; 
 			case 6:
 				ic_proto_name(ip);
 				break;
-			}
+				
+			} 
 		}
 		ip = cp;
 		num++;

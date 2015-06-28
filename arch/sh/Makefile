@@ -49,9 +49,14 @@ CFLAGS		+= -m3
 AFLAGS		+= -m3
 endif
 ifdef CONFIG_CPU_SH4
-CFLAGS		+= -m4 -mno-implicit-fp
-AFLAGS		+= -m4 -mno-implicit-fp
+CFLAGS		+= -m4 -m4-nofpu # -mno-implicit-fp
+AFLAGS		+= -m4 -m4-nofpu # -mno-implicit-fp
 endif
+
+cpuincdir-$(CONFIG_CPU_SH2) := cpu-sh2
+cpuincdir-$(CONFIG_CPU_SH3) := cpu-sh3
+cpuincdir-$(CONFIG_CPU_SH4) := cpu-sh4
+
 
 #
 # Choosing incompatible machines durings configuration will result in
@@ -76,6 +81,14 @@ LIBGCC := $(shell $(CC) $(CFLAGS) -print-libgcc-file-name)
 LIBS := $(TOPDIR)/arch/sh/lib/lib.a $(LIBS) $(TOPDIR)/arch/sh/lib/lib.a \
 	$(LIBGCC)
 
+#
+# If you want the kernel build to build modules outside of the tree
+# then define this and pass it to the main linux makefile
+#
+ifdef EXTRA_MODULE_DIRS
+SUBDIRS += $(EXTRA_MODULE_DIRS)
+endif
+
 MAKEBOOT = $(MAKE) -C arch/$(ARCH)/boot
 
 ifneq ($(CONFIG_SH_GENERIC)$(CONFIG_SH_STB1_HARP)$(CONFIG_SH_STB1_OVERDRIVE),)
@@ -84,6 +97,12 @@ CORE_FILES += arch/sh/stboards/stboards.o
 endif
 
 vmlinux: arch/sh/vmlinux.lds
+
+.PHONY: target_links
+target_links:
+	@echo '  Making asm-sh/cpu -> asm-sh/$(cpuincdir-y) link'
+	@rm -f include/asm-sh/cpu
+	@ln -sf $(cpuincdir-y) include/asm-sh/cpu
 
 arch/sh/vmlinux.lds: arch/sh/vmlinux.lds.S FORCE
 	$(CPP) -traditional -C -P -I$(HPATH) -Ush arch/sh/vmlinux.lds.S >arch/sh/vmlinux.lds
@@ -107,5 +126,6 @@ archclean:
 archmrproper:
 	rm -f arch/sh/vmlinux.lds
 
-archdep:
+archdep: target_links
 	@$(MAKEBOOT) dep
+

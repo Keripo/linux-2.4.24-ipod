@@ -1071,7 +1071,7 @@ int usb_reset_device(struct usb_device *dev)
 		usb_destroy_configuration(dev);
 
 		ret = usb_get_device_descriptor(dev);
-		if (ret < sizeof(dev->descriptor)) {
+		if (ret < 18 /*sizeof(dev->descriptor)*/) {
 			if (ret < 0)
 				err("unable to get device descriptor (error=%d)", ret);
 			else

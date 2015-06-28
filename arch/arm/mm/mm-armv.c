@@ -224,7 +224,7 @@ static inline void clear_mapping(unsigned long virt)
 static void __init create_mapping(struct map_desc *md)
 {
 	unsigned long virt, length;
-	int prot_sect, prot_pte;
+	unsigned int prot_sect, prot_pte;
 	long off;
 
 	if (md->prot_read && md->prot_write &&
@@ -327,7 +327,6 @@ void __init memtable_init(struct meminfo *mi)
 		p->prot_write = 1;
 		p->cacheable  = 1;
 		p->bufferable = 1;
-
 		p ++;
 	}
 
@@ -340,7 +339,6 @@ void __init memtable_init(struct meminfo *mi)
 	p->prot_write = 0;
 	p->cacheable  = 1;
 	p->bufferable = 1;
-
 	p ++;
 #endif
 
@@ -353,7 +351,6 @@ void __init memtable_init(struct meminfo *mi)
 	p->prot_write = 0;
 	p->cacheable  = 1;
 	p->bufferable = 0;
-
 	p ++;
 #endif
 
@@ -390,6 +387,9 @@ void __init memtable_init(struct meminfo *mi)
 	init_maps->bufferable = 0;
 
 	create_mapping(init_maps);
+
+	flush_cache_all();
+	flush_tlb_all();
 }
 
 /*

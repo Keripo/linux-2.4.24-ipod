@@ -22,6 +22,18 @@ ifeq ($(CONFIG_DEBUG_INFO),y)
 CFLAGS		+=-g
 endif
 
+ifeq ($(CONFIG_CPU_BIG_ENDIAN),y)
+CC		+= -mbig-endian
+AS		+= -EB
+LD		+= -EB
+endif
+
+
+#
+# Determine GCC version for proper compiler options
+#
+GCC_VERSION	:= $(shell $(CROSS_COMPILE)gcc  -v 2>&1 | grep version | cut -f3 -d' ' | cut -f1 -d.)
+
 # Select CPU dependent flags.  Note that order of declaration is important;
 # the options further down the list override previous items.
 #
@@ -38,6 +50,13 @@ arch-y				:=
 arch-$(CONFIG_CPU_32v3)		:=-D__LINUX_ARM_ARCH__=3 -march=armv3
 arch-$(CONFIG_CPU_32v4)		:=-D__LINUX_ARM_ARCH__=4 -march=armv4
 arch-$(CONFIG_CPU_32v5)		:=-D__LINUX_ARM_ARCH__=5 -march=armv5
+ifeq ($(GCC_VERSION),3)
+  # The -march=armv5te doesn't seem to really enable XScale features... Why?
+  #arch-$(CONFIG_CPU_XSCALE)    :=-D__LINUX_ARM_ARCH__=5 -march=armv5te
+  arch-$(CONFIG_CPU_XSCALE)     :=-D__LINUX_ARM_ARCH__=5 -mcpu=xscale
+else
+   arch-$(CONFIG_CPU_XSCALE)     :=-D__LINUX_ARM_ARCH__=5 -march=armv4 -Wa,-mxscale
+endif
 
 # This selects how we optimise for the processor.
 tune-y				:=
@@ -49,10 +68,15 @@ tune-$(CONFIG_CPU_ARM922T)	:=-mtune=arm9tdmi
 tune-$(CONFIG_CPU_ARM926T)	:=-mtune=arm9tdmi
 tune-$(CONFIG_CPU_SA110)	:=-mtune=strongarm110
 tune-$(CONFIG_CPU_SA1100)	:=-mtune=strongarm1100
+ifeq ($(GCC_VERSION),3)
+  tune-$(CONFIG_CPU_XSCALE)	:=-mtune=xscale
+else
+  tune-$(CONFIG_CPU_XSCALE)	:=-mtune=strongarm
+endif
 
 CFLAGS_BOOT	:=$(apcs-y) $(arch-y) $(tune-y) -mshort-load-bytes -msoft-float -Uarm
 CFLAGS		+=$(apcs-y) $(arch-y) $(tune-y) -mshort-load-bytes -msoft-float -Uarm
-AFLAGS		+=$(apcs-y) $(arch-y) -mno-fpu -msoft-float
+AFLAGS		+=$(apcs-y) $(arch-y) -msoft-float
 
 ifeq ($(CONFIG_CPU_26),y)
 PROCESSOR	:= armo
@@ -68,7 +92,7 @@ endif
 
 ifeq ($(CONFIG_CPU_32),y)
 PROCESSOR	 = armv
-TEXTADDR	 = 0xC0008000
+TEXTADDR	 = 0x$(shell echo $(CONFIG_KERNEL_START)|sed -e's/0000$$/8000/'|sed -e's/^0x//')
 LDSCRIPT	 = arch/arm/vmlinux-armv.lds.in
 endif
 
@@ -135,6 +159,10 @@ ifeq ($(CONFIG_ARCH_INTEGRATOR),y)
 MACHINE		 = integrator
 endif
 
+ifeq ($(CONFIG_ARCH_KS8695),y)
+MACHINE		 = ks8695
+endif
+
 ifeq ($(CONFIG_ARCH_AT91RM9200),y)
 MACHINE		 = at91rm9200
 endif
@@ -162,6 +190,26 @@ endif
 
 ifeq ($(CONFIG_ARCH_OMAHA),y)
 MACHINE                = omaha
+endif
+
+ifeq ($(CONFIG_ARCH_IOP3XX),y)
+MACHINE		= iop3xx
+endif
+
+ifeq ($(CONFIG_ARCH_IXP1200),y)
+MACHINE		= ixp1200
+endif
+
+ifeq ($(CONFIG_ARCH_ADIFCC),y)
+MACHINE		= adifcc
+endif
+
+ifeq ($(CONFIG_ARCH_IXP425),y)
+MACHINE		= ixp425
+endif
+
+ifeq ($(CONFIG_ARCH_IXP2000),y)
+MACHINE		= ixp2000
 endif
 
 export	MACHINE PROCESSOR TEXTADDR GZFLAGS CFLAGS_BOOT OBJCOPYFLAGS
@@ -266,10 +314,18 @@ arch/arm/vmlinux.lds: arch/arm/Makefile $(LDSCRIPT) \
 	@echo '  Generating $@'
 	@sed 's/TEXTADDR/$(TEXTADDR)/;s/DATAADDR/$(DATAADDR)/' $(LDSCRIPT) >$@
 
+#
+# If you want the kernel build to build modules outside of the tree
+# then define this and pass it to the main linux makefile
+#
+ifdef EXTRA_MODULE_DIRS
+SUBDIRS += $(EXTRA_MODULE_DIRS)
+endif
+
 arch/arm/kernel arch/arm/mm arch/arm/lib: dummy
 	$(MAKE) CFLAGS="$(CFLAGS) $(CFLAGS_KERNEL)" $(subst $@, _dir_$@, $@)
 
-bzImage zImage zinstall Image bootpImage install: vmlinux
+bzImage zImage zinstall Image bootpImage install zsrec %.swap: vmlinux
 	@$(MAKEBOOT) $@
 
 CLEAN_FILES	+= \

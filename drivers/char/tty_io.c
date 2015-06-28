@@ -156,6 +156,11 @@ extern void sa1100_rs_console_init(void);
 extern void sgi_serial_console_init(void);
 extern void sn_sal_serial_console_init(void);
 extern void sci_console_init(void);
+extern void m68328_console_init(void);
+extern void mcfrs_console_init(void);
+extern void v850e_uart_console_init(void);
+extern void atmel_console_init(void);
+extern void s3c3410_console_init(void);
 extern void dec_serial_console_init(void);
 extern void tx3912_console_init(void);
 extern void tx3912_rs_init(void);
@@ -163,7 +168,13 @@ extern void txx927_console_init(void);
 extern void txx9_rs_init(void);
 extern void txx9_serial_console_init(void);
 extern void sb1250_serial_console_init(void);
+extern void s3c3410_console_init(void);
+extern void s3c44b0x_console_init(void);
 extern void arc_console_init(void);
+extern void s3c2500_console_init(void);
+extern void c5471_console_init(void);
+extern void bf535_console_init(void);
+extern void bf533_console_init(void);
 
 #ifndef MIN
 #define MIN(a,b)	((a) < (b) ? (a) : (b))
@@ -2296,6 +2307,45 @@ void __init console_init(void)
 #ifdef CONFIG_SERIAL_AMBA_CONSOLE
 	ambauart_console_init();
 #endif
+#ifdef CONFIG_68328_SERIAL
+	m68328_console_init();
+#endif
+#ifdef CONFIG_COLDFIRE_SERIAL
+	mcfrs_console_init();
+#endif
+#ifdef CONFIG_V850E_UART_CONSOLE
+	v850e_uart_console_init ();
+#endif
+#ifdef CONFIG_SERIAL_DSC21_CONSOLE
+	serial_dsc21_console_init();
+#endif
+#if defined (CONFIG_M68360_SMC_UART) || defined (CONFIG_M68360_SCC_UART)
+    rs_360_init();
+#endif
+#ifdef CONFIG_SERIAL_ATMEL_CONSOLE 
+	atmel_console_init();
+#endif
+#ifdef CONFIG_SERIAL_NETARM_CONSOLE
+	serial_netarm_console_init();
+#endif
+#ifdef CONFIG_SERIAL_KS8695
+	ks8695_console_init();
+#endif
+#ifdef CONFIG_SERIAL_SAMSUNG_CONSOLE
+	samsung_console_init();
+#endif
+#ifdef CONFIG_SERIAL_S3C3410_CONSOLE
+	s3c3410_console_init();
+#endif
+#ifdef CONFIG_SERIAL_S3C44B0X_CONSOLE
+	s3c44b0x_console_init();
+#endif
+#ifdef CONFIG_SERIAL_S3C4530_CONSOLE
+	s3c4530_console_init();
+#endif
+#ifdef CONFIG_SERIAL_S3C2500_CONSOLE
+	s3c2500_console_init();
+#endif
 #ifdef CONFIG_SERIAL_TX3912_CONSOLE
 	tx3912_console_init();
 #endif
@@ -2308,9 +2358,22 @@ void __init console_init(void)
 #ifdef CONFIG_SIBYTE_SB1250_DUART_CONSOLE
 	sb1250_serial_console_init();
 #endif
+#ifdef CONFIG_NIOS_SERIAL
+ 	nios_console_init();
+#endif
 #ifdef CONFIG_IP22_SERIAL
 	sgi_serial_console_init();
 #endif
+#ifdef CONFIG_SERIAL_C5471_CONSOLE
+	 c5471_console_init();
+#endif
+#ifdef CONFIG_SERIAL_BF535
+	bf535_console_init();
+#endif
+#ifdef CONFIG_SERIAL_BF533
+	bf533_console_init();
+#endif
+
 }
 
 static struct tty_driver dev_tty_driver, dev_syscons_driver;

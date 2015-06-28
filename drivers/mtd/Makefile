@@ -20,7 +20,7 @@ obj-            :=
 O_TARGET	:= mtdlink.o
 
 export-objs	:= mtdcore.o mtdpart.o redboot.o cmdlinepart.o afs.o mtdconcat.o
-list-multi	:= nftl.o
+list-multi	:= nftl.o inftl.o
 
 mod-subdirs	:= 
 subdir-y	:= chips maps devices nand
@@ -49,6 +49,7 @@ obj-$(CONFIG_MTD_PARTITIONS)	+= mtdpart.o
 obj-$(CONFIG_MTD_REDBOOT_PARTS) += redboot.o
 obj-$(CONFIG_MTD_CMDLINE_PARTS) += cmdlinepart.o
 obj-$(CONFIG_MTD_AFS_PARTS)	+= afs.o
+obj-$(CONFIG_MTD_CMDLINE_PARTS)	+= cmdlinepart.o
 
 # 'Users' - code which presents functionality to userspace.
 obj-$(CONFIG_MTD_CHAR)		+= mtdchar.o
@@ -56,11 +57,16 @@ obj-$(CONFIG_MTD_BLOCK)		+= mtdblock.o
 obj-$(CONFIG_MTD_BLOCK_RO)	+= mtdblock_ro.o
 obj-$(CONFIG_FTL)		+= ftl.o
 obj-$(CONFIG_NFTL)		+= nftl.o
+obj-$(CONFIG_INFTL)		+= inftl.o
 
 nftl-objs	:= nftlcore.o nftlmount.o
+inftl-objs	:= inftlcore.o inftlmount.o
 
 include $(TOPDIR)/Rules.make
 
 nftl.o: $(nftl-objs)
 	$(LD) -r -o $@ $(nftl-objs)
+
+inftl.o: $(inftl-objs)
+	$(LD) -r -o $@ $(inftl-objs)
 

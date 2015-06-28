@@ -256,6 +256,12 @@ struct tcp_sack_block {
 	__u32	end_seq;
 };
 
+#if 1
+struct udp_opt {
+	__u32 esp_in_udp;
+};
+#endif
+
 struct tcp_opt {
 	int	tcp_header_len;	/* Bytes of tcp header to send		*/
 
@@ -601,6 +607,9 @@ struct sock {
 #if defined(CONFIG_SPX) || defined (CONFIG_SPX_MODULE)
 		struct spx_opt		af_spx;
 #endif /* CONFIG_SPX */
+#if 1
+		struct udp_opt 		af_udp;
+#endif
 
 	} tp_pinfo;
 

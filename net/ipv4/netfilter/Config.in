@@ -7,9 +7,12 @@ comment '  IP: Netfilter Configuration'
 tristate 'Connection tracking (required for masq/NAT)' CONFIG_IP_NF_CONNTRACK
 if [ "$CONFIG_IP_NF_CONNTRACK" != "n" ]; then
   dep_tristate '  FTP protocol support' CONFIG_IP_NF_FTP $CONFIG_IP_NF_CONNTRACK
+  dep_tristate '  H.323 (netmeeting) support' CONFIG_IP_NF_H323 $CONFIG_IP_NF_CONNTRACK
   dep_tristate '  Amanda protocol support' CONFIG_IP_NF_AMANDA $CONFIG_IP_NF_CONNTRACK
   dep_tristate '  TFTP protocol support' CONFIG_IP_NF_TFTP $CONFIG_IP_NF_CONNTRACK
   dep_tristate '  IRC protocol support' CONFIG_IP_NF_IRC $CONFIG_IP_NF_CONNTRACK
+  dep_tristate '  GRE protocol support' CONFIG_IP_NF_CT_PROTO_GRE $CONFIG_IP_NF_CONNTRACK
+  dep_tristate '   PPTP protocol support' CONFIG_IP_NF_PPTP $CONFIG_IP_NF_CT_PROTO_GRE
 fi
 
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
@@ -59,6 +62,13 @@ if [ "$CONFIG_IP_NF_IPTABLES" != "n" ]; then
       define_bool CONFIG_IP_NF_NAT_NEEDED y
       dep_tristate '    MASQUERADE target support' CONFIG_IP_NF_TARGET_MASQUERADE $CONFIG_IP_NF_NAT
       dep_tristate '    REDIRECT target support' CONFIG_IP_NF_TARGET_REDIRECT $CONFIG_IP_NF_NAT
+      if [ "$CONFIG_IP_NF_H323" = "m" ]; then
+       define_tristate CONFIG_IP_NF_NAT_H323 m
+      else
+        if [ "$CONFIG_IP_NF_H323" = "y" ]; then
+          define_tristate CONFIG_IP_NF_NAT_H323 $CONFIG_IP_NF_NAT
+        fi
+      fi
       if [ "$CONFIG_IP_NF_AMANDA" = "m" ]; then
         define_tristate CONFIG_IP_NF_NAT_AMANDA m
       else
@@ -85,6 +95,20 @@ if [ "$CONFIG_IP_NF_IPTABLES" != "n" ]; then
         if [ "$CONFIG_IP_NF_FTP" = "y" ]; then
           define_tristate CONFIG_IP_NF_NAT_FTP $CONFIG_IP_NF_NAT
         fi
+      fi
+      if [ "$CONFIG_IP_NF_PPTP" = "m" ]; then
+        define_tristate CONFIG_IP_NF_NAT_PPTP m
+      else
+        if [ "$CONFIG_IP_NF_PPTP" = "y" ]; then
+          define_tristate CONFIG_IP_NF_NAT_PPTP $CONFIG_IP_NF_NAT
+        fi
+      fi
+      if [ "$CONFIG_IP_NF_CT_PROTO_GRE" = "m" ]; then
+        define_tristate CONFIG_IP_NF_NAT_PROTO_GRE m
+      else
+        if [ "$CONFIG_IP_NF_CT_PROTO_GRE" = "y" ]; then
+	  define_tristate CONFIG_IP_NF_NAT_PROTO_GRE $CONFIG_IP_NF_NAT
+	fi
       fi
       if [ "$CONFIG_IP_NF_TFTP" = "m" ]; then
 	define_tristate CONFIG_IP_NF_NAT_TFTP m

@@ -56,6 +56,8 @@ ifeq ($(CONFIG_USB_EHCI_HCD),y)
 	obj-y += host/ehci-hcd.o
 endif
 
+obj-$(CONFIG_USB_SL811HS)	+= hc_sl811.o
+
 ifneq ($(CONFIG_USB_EHCI_HCD),n)
 	usbcore-objs		+= hcd.o
 endif

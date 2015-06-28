@@ -164,6 +164,10 @@ else
    define_tristate CONFIG_ZISOFS_FS n
 fi
 
+if [ "$CONFIG_UCLINUX" != "y" ]; then
+	bool 'Crazy printk coredump support' CONFIG_COREDUMP_PRINTK
+fi
+
 mainmenu_option next_comment
 comment 'Partition Types'
 source fs/partitions/Config.in

@@ -835,6 +835,174 @@ bad_ctc:
 	return 0;
 }
 
+
+#if defined(CONFIG_MTD_NETtel) || defined(CONFIG_MTD_SNAPGEODE)
+/*
+ * Fast timer code for general use,  primarily polling network chips
+ */
+
+#include <linux/timer.h>
+#include <asm/fast_timer.h>
+
+#define	SC520_CLOCK	1188200
+#define SC520_TIMER_PAGE_ADDR 0xfffef000
+
+static struct timer_list fast_timerlist;
+
+struct ftentry {
+	void	(*func)(void *);
+	void	*arg;
+};
+
+#define	FAST_TIMER_MAX	8
+static struct ftentry	fast_timer[FAST_TIMER_MAX];
+static int		fast_timers = 0;
+static spinlock_t	fast_timer_lock;
+
+static void fast_poll(unsigned long arg)
+{
+	int i;
+	for (i = 0; i < fast_timers; i++)
+		(*fast_timer[i].func)(fast_timer[i].arg);
+	fast_timerlist.expires = jiffies + 1;
+	add_timer(&fast_timerlist);
+}
+
+static void fast_timer_irq(int irq, void *dev_instance, struct pt_regs *regs)
+{
+	int i;
+
+#if defined(CONFIG_MTD_SNAPGEODE)
+	/* Ack RTC periodic interrupt */
+	outb(0xc, 0x70);
+	inb(0x71);
+#endif
+
+	for (i = 0; i < fast_timers; i++)
+		(*fast_timer[i].func)(fast_timer[i].arg);
+}
+
+static struct irqaction fasttimer_irq  =
+		{ fast_timer_irq, SA_INTERRUPT, 0, "fast timer", NULL, NULL};
+
+static void
+fast_timer_setup(int rate)
+{
+#if defined(CONFIG_MTD_NETtel)
+	void *rtl8139_mmcrp;
+	int pageaddr;
+	int offset;
+
+	pageaddr = SC520_TIMER_PAGE_ADDR & PAGE_MASK;
+	offset = SC520_TIMER_PAGE_ADDR & ~PAGE_MASK;
+	set_fixmap_nocache(FIX_SC520_TIMER, pageaddr);
+	rtl8139_mmcrp = (void *) fix_to_virt(FIX_SC520_TIMER + offset);
+
+
+	if (rtl8139_mmcrp != NULL) {
+		volatile unsigned char *pit1map;
+
+		printk("SnapGear: fast timer %dHz clock timer on IRQ 15\n", rate);
+
+		setup_irq(15, &fasttimer_irq);
+
+		/* Set up interrupt routing for PIT1 timer to IRQ 15 */
+		pit1map = (volatile unsigned char *) (rtl8139_mmcrp + 0xd21);
+		*pit1map = 0x0a;
+
+		/* Setup PIT1 timer for 500Hz */
+		outb(0x74, 0x43);
+		outb((SC520_CLOCK / rate) & 0xff, 0x41);
+		outb(((SC520_CLOCK / rate) >> 8) & 0xff, 0x41);
+	}
+	spin_lock_init(&fast_timer_lock);
+#elif defined(CONFIG_MTD_SNAPGEODE)
+	/* We are using the RTC periodic interrupt */
+	setup_irq(8, &fasttimer_irq);
+
+	/* Set clock to 1.953ms - 512Hz */
+	outb(0xa, 0x70);
+	outb(((inb(0x71) & 0x70) | 0x7), 0x71);
+
+	/* Enable RTC periodic interrupt */
+	outb(0xb, 0x70);
+	outb(((inb(0x71) & 0xf7) | 0x40), 0x71);
+
+	spin_lock_init(&fast_timer_lock);
+
+	printk("SnapGear: fast timer %dHz clock timer\n", 512);
+#else
+	init_timer(&fast_timerlist);
+	fast_timerlist.function = fast_poll;
+	fast_timerlist.data = 0;
+	fast_timerlist.expires = jiffies + 1;
+	add_timer(&fast_timerlist);
+	printk("SnapGear: fast timer %dHz clock timer\n", HZ);
+#endif
+}
+
+
+void
+fast_timer_add(void (*func)(void *arg), void *arg)
+{
+	int i;
+	unsigned long flags;
+
+	for (i = 0; i < fast_timers; i++) {
+		if (fast_timer[i].func == func && fast_timer[i].arg == arg) {
+			printk(KERN_ERR
+				"SnapGear: fast timer entry already exists (0x%x, 0x%x)\n",
+				(unsigned int) func, (unsigned int) arg);
+			return;
+		}
+	}
+
+	spin_lock_irqsave(&fast_timer_lock, flags);
+	if (fast_timers < FAST_TIMER_MAX) {
+		fast_timer[fast_timers].func = func;
+		fast_timer[fast_timers].arg = arg;
+		fast_timers++;
+	} else
+		printk(KERN_ERR "SnapGear: fast timer, no free slots\n");
+	spin_unlock_irqrestore(&fast_timer_lock, flags);
+}
+
+
+void
+fast_timer_remove(void (*func)(void *arg), void *arg)
+{
+	int i;
+	unsigned long flags;
+
+	spin_lock_irqsave(&fast_timer_lock, flags);
+	for (i = 0; i < fast_timers; i++) {
+		if (fast_timer[i].func == func && fast_timer[i].arg == arg) {
+			memmove(&fast_timer[i], &fast_timer[i+1],
+				sizeof(struct ftentry) * (FAST_TIMER_MAX - (i+1)));
+			fast_timers--;
+			spin_unlock_irqrestore(&fast_timer_lock, flags);
+			return;
+		}
+	}
+	spin_unlock_irqrestore(&fast_timer_lock, flags);
+	printk(KERN_ERR "SnapGear: fast timer entry does not exist (0x%x, 0x%x)\n",
+		(unsigned int) func, (unsigned int) arg);
+}
+
+
+/*
+ * return the current ticks on the fast timer
+ */
+unsigned long
+fast_timer_count(void)
+{
+	return(0);
+}
+
+#endif /* defined(CONFIG_MTD_NETtel) || defined(CONFIG_MTD_SNAPGEODE) */
+
+
+
 void __init time_init(void)
 {
 	extern int x86_udelay_tsc;
@@ -923,5 +1091,9 @@ void __init time_init(void)
 	setup_irq(CO_IRQ_TIMER, &irq0);
 #else
 	setup_irq(0, &irq0);
+#endif
+
+#if defined(CONFIG_MTD_NETtel) || defined(CONFIG_MTD_SNAPGEODE)
+	fast_timer_setup(500);
 #endif
 }

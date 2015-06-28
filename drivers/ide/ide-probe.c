@@ -52,6 +52,7 @@
 #include <linux/kmod.h>
 
 #include <asm/byteorder.h>
+#include <asm/dma.h>
 #include <asm/irq.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -459,6 +460,25 @@ static int do_probe (ide_drive_t *drive, u8 cmd)
 	ide_delay_50ms();
 	SELECT_DRIVE(drive);
 	ide_delay_50ms();
+
+#ifdef CONFIG_COLDFIRE
+	/*
+	 *  ColdFire platforms boot up so quick that most hard drives
+	 *  have not completed there own self tests. Pause here for
+	 *  a couple of seconds if it looks like there is a drive
+	 *  present...
+	 */
+	if (hwif->INB(IDE_SELECT_REG) != drive->select.all) {
+		printk("IDE: waiting for drives to settle...\n");
+		for (rc = 0; (rc < 400); rc++) {
+			SELECT_DRIVE(drive);
+			ide_delay_50ms();
+			if (hwif->INB(IDE_SELECT_REG) == drive->select.all)
+				break;
+		}
+	}
+#endif
+
 	if (hwif->INB(IDE_SELECT_REG) != drive->select.all && !drive->present) {
 		if (drive->select.b.unit != 0) {
 			/* exit with drive0 selected */
@@ -823,7 +843,7 @@ void probe_hwif (ide_hwif_t *hwif)
 	if (hwif->noprobe)
 		return;
 #ifdef CONFIG_BLK_DEV_IDE
-	if (hwif->io_ports[IDE_DATA_OFFSET] == HD_DATA) {
+	if (hwif->io_ports[IDE_DATA_OFFSET] == (ide_ioreg_t)HD_DATA) {
 		extern void probe_cmos_for_drives(ide_hwif_t *);
 		probe_cmos_for_drives(hwif);
 	}
@@ -1104,6 +1124,13 @@ int init_irq (ide_hwif_t *hwif)
 		}
 	}
 
+#ifdef CONFIG_BLK_DEV_UCLINUX_IDE
+{
+	extern void uclinux_irq_fixup();
+	uclinux_irq_fixup();
+}
+#endif
+
 	/*
 	 * Everything is okay, so link us into the hwgroup
 	 */
@@ -1135,7 +1162,8 @@ int init_irq (ide_hwif_t *hwif)
 	spin_unlock_irqrestore(&io_request_lock, flags);
 #endif
 
-#if !defined(__mc68000__) && !defined(CONFIG_APUS) && !defined(__sparc__)
+#if !defined(__mc68000__) && !defined(CONFIG_APUS) && !defined(__sparc__) && \
+    !defined(__H8300H__) && !defined(__H8300S__)
 	printk("%s at 0x%03lx-0x%03lx,0x%03lx on irq %d", hwif->name,
 		hwif->io_ports[IDE_DATA_OFFSET],
 		hwif->io_ports[IDE_DATA_OFFSET]+7,
@@ -1145,6 +1173,8 @@ int init_irq (ide_hwif_t *hwif)
 		hwif->io_ports[IDE_DATA_OFFSET],
 		hwif->io_ports[IDE_DATA_OFFSET]+7,
 		hwif->io_ports[IDE_CONTROL_OFFSET], __irq_itoa(hwif->irq));
+#elif defined(__H8300H__) || defined(__H8300S__)
+	ide_print_resource(hwif->name,&(hwif->hw));
 #else
 	printk("%s at 0x%08lx on irq %d", hwif->name,
 		hwif->io_ports[IDE_DATA_OFFSET], hwif->irq);

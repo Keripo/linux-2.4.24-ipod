@@ -75,7 +75,10 @@ struct serial_struct {
 #define PORT_16654	11
 #define PORT_16850	12
 #define PORT_RSA	13	/* RSA-DV II/S card */
-#define PORT_MAX	13
+#define PORT_XSCALE	14
+#define PORT_DSC21	15
+#define PORT_C5471	16
+#define PORT_MAX	16
 
 #define SERIAL_IO_PORT	0
 #define SERIAL_IO_HUB6	1

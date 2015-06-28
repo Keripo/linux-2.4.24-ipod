@@ -157,8 +157,8 @@ in_range(const struct ip_conntrack_tuple *tuple,
 				continue;
 		}
 
-		if ((mr->range[i].flags & IP_NAT_RANGE_PROTO_SPECIFIED)
-		    && proto->in_range(&newtuple, IP_NAT_MANIP_SRC,
+		if (!(mr->range[i].flags & IP_NAT_RANGE_PROTO_SPECIFIED)
+		    || proto->in_range(&newtuple, IP_NAT_MANIP_SRC,
 				       &mr->range[i].min, &mr->range[i].max))
 			return 1;
 	}
@@ -430,7 +430,7 @@ get_unique_tuple(struct ip_conntrack_tuple *tuple,
 	*tuple = *orig_tuple;
 	while ((rptr = find_best_ips_proto_fast(tuple, mr, conntrack, hooknum))
 	       != NULL) {
-		DEBUGP("Found best for "); DUMP_TUPLE(tuple);
+		DEBUGP("Found best for "); DUMP_TUPLE_RAW(tuple);
 		/* 3) The per-protocol part of the manip is made to
 		   map into the range to make a unique tuple. */
 
@@ -571,9 +571,9 @@ ip_nat_setup_info(struct ip_conntrack *conntrack,
 		       HOOK2MANIP(hooknum)==IP_NAT_MANIP_SRC ? "SRC" : "DST",
 		       conntrack);
 		DEBUGP("Original: ");
-		DUMP_TUPLE(&orig_tp);
+		DUMP_TUPLE_RAW(&orig_tp);
 		DEBUGP("New: ");
-		DUMP_TUPLE(&new_tuple);
+		DUMP_TUPLE_RAW(&new_tuple);
 #endif
 
 		/* We now have two tuples (SRCIP/SRCPT/DSTIP/DSTPT):

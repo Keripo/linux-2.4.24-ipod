@@ -22,6 +22,13 @@
  * formats. 
  */
 
+/*
+ * uClinux revisions for NO_MM
+ *   Copyright (C) 1998  Kenneth Albanowski <kjahds@kjahds.com>,
+ *   Support for 2.4 (C) 2000 Lineo by David McCullough <davidm@lineo.com>
+ *                   (C) 2000-2003 David McCullough <davidm@snapgear.com>
+ */
+
 #include <linux/config.h>
 #include <linux/slab.h>
 #include <linux/file.h>
@@ -43,6 +50,7 @@
 #include <asm/uaccess.h>
 #include <asm/pgalloc.h>
 #include <asm/mmu_context.h>
+#include <asm/page.h>
 
 #ifdef CONFIG_KMOD
 #include <linux/kmod.h>
@@ -284,14 +292,17 @@ int copy_strings_kernel(int argc,char ** argv, struct linux_binprm *bprm)
  */
 void put_dirty_page(struct task_struct * tsk, struct page *page, unsigned long address)
 {
+#ifndef NO_MM
 	pgd_t * pgd;
 	pmd_t * pmd;
 	pte_t * pte;
 	struct vm_area_struct *vma; 
 	pgprot_t prot = PAGE_COPY; 
+#endif /* NO_MM */
 
 	if (page_count(page) != 1)
 		printk(KERN_ERR "mem_map disagrees with %p at %08lx\n", page, address);
+#ifndef NO_MM
 	pgd = pgd_offset(tsk->mm, address);
 
 	spin_lock(&tsk->mm->page_table_lock);
@@ -320,11 +331,14 @@ out:
 	spin_unlock(&tsk->mm->page_table_lock);
 	__free_page(page);
 	force_sig(SIGKILL, tsk);
+#endif /* NO_MM */
 	return;
 }
 
+
 int setup_arg_pages(struct linux_binprm *bprm)
 {
+#ifndef NO_MM
 	unsigned long stack_base;
 	struct vm_area_struct *mpnt;
 	int i;
@@ -365,6 +379,7 @@ int setup_arg_pages(struct linux_binprm *bprm)
 	}
 	up_write(&current->mm->mmap_sem);
 	
+#endif /* NO_MM */
 	return 0;
 }
 
@@ -436,11 +451,13 @@ static int exec_mmap(void)
 			return -ENOMEM;
 		}
 
+#ifndef NO_MM
 		/* Add it to the list of mm's */
 		spin_lock(&mmlist_lock);
 		list_add(&mm->mmlist, &init_mm.mmlist);
 		mmlist_nr++;
 		spin_unlock(&mmlist_lock);
+#endif /* NO_MM */
 
 		task_lock(current);
 		active_mm = current->active_mm;
@@ -800,6 +817,7 @@ inside:
 	}
 }
 
+
 /*
  * cycle the list of binary formats handler, until one recognizes the image
  */
@@ -948,9 +966,13 @@ int do_execve(char * filename, char ** argv, char ** envp, struct pt_regs * regs
 		goto out; 
 
 	retval = search_binary_handler(&bprm,regs);
-	if (retval >= 0)
-		/* execve success */
-		return retval;
+	if (retval >= 0) {
+#ifdef NO_MM
+		goto out_ok;
+#else
+		return(retval);
+#endif
+	}
 
 out:
 	/* Something went wrong, return the inode and free the argument pages*/
@@ -958,6 +980,9 @@ out:
 	if (bprm.file)
 		fput(bprm.file);
 
+#ifdef NO_MM
+out_ok: /* NO_MM needs to free the arg pages always */
+#endif
 	for (i = 0 ; i < MAX_ARG_PAGES ; i++) {
 		struct page * page = bprm.page[i];
 		if (page)
@@ -1093,6 +1118,16 @@ void format_corename(char *corename, const char *pattern, long signr)
 	*out_ptr = 0;
 }
 
+
+/* for systems with sizeof(void*) == 4: */
+#define MAPS_LINE_FORMAT4	  KERN_ERR "%08lx-%08lx %s %08lx %s %lu %s\n"
+
+/* for systems with sizeof(void*) == 8: */
+#define MAPS_LINE_FORMAT8	  KERN_ERR "%016lx-%016lx %s %016lx %s %lu %s\n"
+
+#define MAPS_LINE_FORMAT	(sizeof(void*) == 4 ? MAPS_LINE_FORMAT4 : MAPS_LINE_FORMAT8)
+
+
 int do_coredump(long signr, struct pt_regs * regs)
 {
 	struct linux_binfmt * binfmt;
@@ -1101,6 +1136,103 @@ int do_coredump(long signr, struct pt_regs * regs)
 	struct inode * inode;
 	int retval = 0;
 	int fsuid = current->fsuid;
+
+#if defined(CONFIG_COREDUMP_PRINTK)
+	int32_t *stack=NULL;
+	int lines=0;
+	char output_buf[80];
+	char *output = output_buf;
+	int32_t value = 0;
+
+	printk(KERN_ERR "%s[%d] killed because of sig - %ld", current->comm, 
+			current->pid, signr);
+	/* TODO
+	 * print out mmaps.
+	 */
+
+	/*
+	 * We print out the stack.  We start by pointing the stack before the
+	 * call to do_coredump.  Note that we are assuming the kernel stack is 
+	 * the same as the user stack when we are calling do_coredump.
+	 */
+	printk("\n");
+	printk(KERN_ERR"STACK DUMP:\n");
+	for (lines=0,stack=(int32_t *)user_stack(regs);(lines < 10) && 
+			(stack <= (int32_t *)current->mm->start_stack);lines++) {
+		/* print out the address */
+		output+=snprintf(output, 79-(output-output_buf), "0x%08x: ", 
+				(unsigned)stack);
+		/* now print out the stack contents */
+		for (;(stack <= (int32_t*)current->mm->start_stack) && 
+				(79-(output-output_buf) > sizeof("FFFF0000 "));stack++) {
+			copy_from_user(&value, stack, sizeof(int32_t));
+			output += snprintf(output, 79-(output-output_buf),
+					"%08x ", value);
+		}
+		output--;
+		*output++ = '\n';
+		*output = '\0';
+		printk(KERN_ERR "%s", output_buf);
+		output = output_buf;
+	}
+	show_regs(regs);
+#ifndef NO_MM
+	{
+	struct mm_struct *mm=NULL;
+	struct vm_area_struct *map;
+	char buf[PAGE_SIZE]={0};
+	int flags=0;
+	char *line;
+	kdev_t dev = 0;
+	unsigned long ino = 0;
+
+	mm = current->mm;
+	if (mm) 
+		atomic_inc(&mm->mm_users);
+	if (!mm)
+		goto finished;
+
+	down_read(&mm->mmap_sem);
+	map = mm->mmap;
+
+	while (map) {
+		char str[5];
+
+		if (map->vm_file != NULL) {
+			dev = map->vm_file->f_dentry->d_inode->i_dev;
+			ino = map->vm_file->f_dentry->d_inode->i_ino;
+			line = d_path(map->vm_file->f_dentry,
+			      map->vm_file->f_vfsmnt,
+			      buf, sizeof(buf));
+		} else {
+			line=NULL;
+		}
+
+		flags = map->vm_flags;
+
+		str[0] = flags & VM_READ ? 'r' : '-';
+		str[1] = flags & VM_WRITE ? 'w' : '-';
+		str[2] = flags & VM_EXEC ? 'x' : '-';
+		str[3] = flags & VM_MAYSHARE ? 's' : 'p';
+		str[4] = 0;
+
+		printk(MAPS_LINE_FORMAT, map->vm_start, map->vm_end,
+				str,
+				map->vm_pgoff << PAGE_SHIFT,
+				kdevname(dev), ino, line?line:"");
+		map = map->vm_next;
+	}
+	up_read(&mm->mmap_sem);
+	mmput(mm);
+	}
+#else
+	/*
+	 * How do we find base address of shared libs??
+	 */
+#endif
+
+finished:
+#endif
 
 	lock_kernel();
 	binfmt = current->binfmt;

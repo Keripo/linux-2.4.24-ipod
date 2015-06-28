@@ -27,6 +27,12 @@ subdir-$(CONFIG_NETFILTER)	+= ipv6/netfilter
 endif
 endif
 
+ifneq ($(CONFIG_BRIDGE),n)
+ifneq ($(CONFIG_BRIDGE),)
+subdir-$(CONFIG_BRIDGE)		+= bridge/netfilter
+endif
+endif
+
 subdir-$(CONFIG_KHTTPD)		+= khttpd
 subdir-$(CONFIG_PACKET)		+= packet
 subdir-$(CONFIG_NET_SCHED)	+= sched

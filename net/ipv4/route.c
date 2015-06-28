@@ -2573,9 +2573,10 @@ void __init ip_rt_init(void)
 	if (!ipv4_dst_ops.kmem_cachep)
 		panic("IP: failed to allocate ip_dst_cache\n");
 
-	goal = num_physpages >> (26 - PAGE_SHIFT);
+	goal = (num_physpages << PAGE_SHIFT) >> 14;
+	ip_rt_max_size = goal / sizeof(struct rt_hash_bucket) * 16;
 
-	for (order = 0; (1UL << order) < goal; order++)
+	for (order = 0; (1UL << order) < (goal >> PAGE_SHIFT); order++)
 		/* NOTHING */;
 
 	do {
@@ -2604,7 +2605,10 @@ void __init ip_rt_init(void)
 	}
 
 	ipv4_dst_ops.gc_thresh = (rt_hash_mask + 1);
-	ip_rt_max_size = (rt_hash_mask + 1) * 16;
+	if (ip_rt_max_size > (rt_hash_mask + 1) * 16)
+		ip_rt_max_size = (rt_hash_mask + 1) * 16;
+	else if (ip_rt_max_size < rt_hash_mask + 1)
+		ip_rt_max_size = rt_hash_mask + 1;
 
 	devinet_init();
 	ip_fib_init();

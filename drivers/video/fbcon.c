@@ -98,7 +98,17 @@
 #include <asm/io.h>
 #endif
 #define INCLUDE_LINUX_LOGO_DATA
+/* 
+ * The #include <asm/linux_logo.h> didn't seem to work for us.
+ * so I use #include <linux/linux_logo.h> if compiling for
+ * our board
+ * (20030314 - hede) 
+ */
+#if defined(CONFIG_FB_COBRA5272) || defined (CONFIG_DRAGEN2)
+#include <linux/linux_logo.h>
+#else
 #include <asm/linux_logo.h>
+#endif
 
 #include <video/fbcon.h>
 #include <video/fbcon-mac.h>	/* for 6x11 font on mac */

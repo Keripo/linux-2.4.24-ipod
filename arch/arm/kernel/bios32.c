@@ -245,7 +245,30 @@ static void __init pci_fixup_cy82c693(struct pci_dev *dev)
 	}
 }
 
+
+#ifdef CONFIG_ARCH_IXP1200
+/* Properly setup 32-byte cache line size */
+static void __init pci_fixup_ixp12xx(struct pci_dev *dev)
+{
+	u8 foo;
+	pci_read_config_byte(dev, PCI_CACHE_LINE_SIZE, &foo);
+
+	printk("PCI: %s has cache line of %#02x\n", dev->name, foo);
+
+	pci_write_config_byte(dev, PCI_CACHE_LINE_SIZE, 8);
+
+}
+#endif
+
+
 struct pci_fixup pcibios_fixups[] = {
+#ifdef CONFIG_ARCH_IXP12xx
+	{
+		PCI_FIXUP_FINAL,
+		PCI_ANY_ID,		PCI_ANY_ID,
+		pci_fixup_ixp12xx
+	},
+#endif
 	{
 		PCI_FIXUP_HEADER,
 		PCI_VENDOR_ID_CONTAQ,	PCI_DEVICE_ID_CONTAQ_82C693,
@@ -456,6 +479,13 @@ extern struct hw_pci personal_server_pci;
 extern struct hw_pci ftv_pci;
 extern struct hw_pci shark_pci;
 extern struct hw_pci integrator_pci;
+extern struct hw_pci ixp1200_pci;
+extern struct hw_pci iq80310_pci;
+extern struct hw_pci iq80321_pci;
+extern struct hw_pci brh_pci;
+extern struct hw_pci ixdp425_pci;
+extern struct hw_pci coyote_pci;
+extern struct hw_pci ixdp2400_pci;
 
 void __init pcibios_init(void)
 {
@@ -505,6 +535,45 @@ void __init pcibios_init(void)
 			break;
 		}
 #endif
+#ifdef CONFIG_ARCH_IXP1200
+		if(machine_is_ixp1200()) {
+			hw = &ixp1200_pci;
+			break;
+		}
+#endif
+#ifdef CONFIG_ARCH_IOP3XX
+		if(machine_is_iq80310()) {
+			hw = &iq80310_pci;
+			break;
+		}
+		if(machine_is_iq80321()) {
+			hw = &iq80321_pci;
+			break;
+		}
+#endif
+#ifdef	CONFIG_ARCH_BRH
+		if (machine_is_brh()) {
+			hw = &brh_pci;
+			break;
+		}
+#endif
+#ifdef CONFIG_ARCH_IXP425
+		if (machine_is_ixdp425()) {
+			hw = &ixdp425_pci;
+			break;
+		}
+		if (machine_is_adi_coyote()) {
+			hw = &coyote_pci;
+			break;
+		}
+#endif
+
+#ifdef CONFIG_ARCH_IXP2000
+		if (machine_is_ixdp2400()) {
+			hw = &ixdp2400_pci;
+			break;
+		}
+#endif
 	} while (0);
 
 	if (hw == NULL)
@@ -541,7 +610,12 @@ void __init pcibios_init(void)
 	/*
 	 * Assign any unassigned resources.
 	 */
+
+	// TODO: Make PCI_AUTO go away
+#ifndef CONFIG_PCI_AUTOCONFIG
 	pci_assign_unassigned_resources();
+#endif
+
 	pci_fixup_irqs(root->hw->swizzle, root->hw->map_irq);
 }
 
@@ -570,7 +644,7 @@ char * __init pcibios_setup(char *str)
  * which might be mirrored at 0x0100-0x03ff..
  */
 void pcibios_align_resource(void *data, struct resource *res,
-			    unsigned long size, unsigned long align)
+			  unsigned long size, unsigned long align)
 {
 	if (res->flags & IORESOURCE_IO) {
 		unsigned long start = res->start;

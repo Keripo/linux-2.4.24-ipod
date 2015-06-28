@@ -26,6 +26,7 @@
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
 #include <asm/unaligned.h>
+#include <asm/kgdb.h>
 
 #ifdef CONFIG_CPU_26
 #define FAULT_CODE_WRITE	0x02
@@ -148,6 +149,10 @@ __do_kernel_fault(struct mm_struct *mm, unsigned long addr, int error_code,
 		"paging request", addr);
 
 	show_pte(mm, addr);
+
+#ifdef	CONFIG_KGDB
+	do_kgdb(regs, SIGKILL);
+#endif
 	die("Oops", regs, error_code);
 	do_exit(SIGKILL);
 }
@@ -199,6 +204,12 @@ __do_page_fault(struct mm_struct *mm, unsigned long addr, int error_code,
 {
 	struct vm_area_struct *vma;
 	int fault, mask;
+
+#if defined(CONFIG_KGDB)
+	/* REVISIT: This one may not be required? */
+	if (kgdb_fault_expected)
+		kgdb_handle_bus_error();
+#endif
 
 	vma = find_vma(mm, addr);
 	fault = -2; /* bad map area */
@@ -265,6 +276,11 @@ int do_page_fault(unsigned long addr, int error_code, struct pt_regs *regs)
 	struct task_struct *tsk;
 	struct mm_struct *mm;
 	int fault;
+
+#if defined(CONFIG_KGDB)
+	if (kgdb_fault_expected)
+		kgdb_handle_bus_error();
+#endif
 
 	tsk = current;
 	mm  = tsk->mm;

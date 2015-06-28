@@ -28,6 +28,8 @@
 #include <asm/pgalloc.h>
 #include <asm/pgtable.h>
 
+#include <asm/kgdb.h>
+
 extern void show_pte(struct mm_struct *mm, unsigned long addr);
 extern int do_page_fault(unsigned long addr, int error_code,
 			 struct pt_regs *regs);
@@ -61,13 +63,13 @@ do_sect_fault(unsigned long addr, int error_code, struct pt_regs *regs)
  * we don't guarantee that this will be the final version of the
  * interface.
  */
-int (*external_fault)(unsigned long addr, struct pt_regs *regs);
+int (*external_fault)(unsigned long addr, unsigned long fsr, struct pt_regs *regs);
 
 static int
 do_external_fault(unsigned long addr, int error_code, struct pt_regs *regs)
 {
 	if (external_fault)
-		return external_fault(addr, regs);
+		return external_fault(addr, error_code, regs);
 	return 1;
 }
 
@@ -111,6 +113,14 @@ do_DataAbort(unsigned long addr, int error_code, struct pt_regs *regs, int fsr)
 {
 	const struct fsr_info *inf = fsr_info + (fsr & 15);
 
+#ifdef CONFIG_KGDB
+	if(kgdb_fault_expected)
+		kgdb_handle_bus_error();
+#endif
+
+	if(inf->fn == do_external_fault)
+		error_code = fsr;
+
 	if (!inf->fn(addr, error_code, regs))
 		return;
 
@@ -118,6 +128,12 @@ do_DataAbort(unsigned long addr, int error_code, struct pt_regs *regs, int fsr)
 		inf->name, fsr, addr);
 	force_sig(inf->sig, current);
 	show_pte(current->mm, addr);
+
+#ifdef CONFIG_KGDB
+	if(!user_mode(regs))
+		do_kgdb(regs, inf->sig);
+#endif
+
 	die_if_kernel("Oops", regs, 0);
 }
 

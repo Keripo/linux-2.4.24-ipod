@@ -1031,7 +1031,10 @@ ppp_send_frame(struct ppp *ppp, struct sk_buff *skb)
 	/* try to do packet compression */
 	if ((ppp->xstate & SC_COMP_RUN) && ppp->xc_state != 0
 	    && proto != PPP_LCP && proto != PPP_CCP) {
-		new_skb = alloc_skb(ppp->dev->mtu + ppp->dev->hard_header_len,
+		int comp_overhead = (ppp->xcomp->compress_proto == CI_MPPE) ?
+			4 : 0;
+		new_skb = alloc_skb(ppp->dev->mtu + ppp->dev->hard_header_len
+				    + comp_overhead,
 				    GFP_ATOMIC);
 		if (new_skb == 0) {
 			printk(KERN_ERR "PPP: no memory (comp pkt)\n");
@@ -1044,7 +1047,8 @@ ppp_send_frame(struct ppp *ppp, struct sk_buff *skb)
 		/* compressor still expects A/C bytes in hdr */
 		len = ppp->xcomp->compress(ppp->xc_state, skb->data - 2,
 					   new_skb->data, skb->len + 2,
-					   ppp->dev->mtu + PPP_HDRLEN);
+					   ppp->dev->mtu + PPP_HDRLEN + 
+					   comp_overhead);
 		if (len > 0 && (ppp->flags & SC_CCP_UP)) {
 			kfree_skb(skb);
 			skb = new_skb;
@@ -1323,9 +1327,12 @@ ppp_do_recv(struct ppp *ppp, struct sk_buff *skb, struct channel *pch)
 {
 	ppp_recv_lock(ppp);
 	/* ppp->dev == 0 means interface is closing down */
-	if (ppp->dev != 0)
+	if (ppp->dev != 0) {
+		/* Reset the state for the next frame */
+		ppp->rstate |= SC_DECOMP_RUN;
+		ppp->rstate &= ~(SC_DC_ERROR | SC_DC_FERROR);
 		ppp_receive_frame(ppp, skb, pch);
-	else
+	} else
 		kfree_skb(skb);
 	ppp_recv_unlock(ppp);
 }
@@ -1427,6 +1434,11 @@ ppp_receive_nonmp_frame(struct ppp *ppp, struct sk_buff *skb)
 	if (ppp->rc_state != 0 && (ppp->rstate & SC_DECOMP_RUN)
 	    && (ppp->rstate & (SC_DC_FERROR | SC_DC_ERROR)) == 0)
 		skb = ppp_decompress_frame(ppp, skb);
+
+	if (skb == NULL) {
+		printk(KERN_ERR"PPP: dropping received packet - too big\n");
+		goto err;
+	}
 
 	proto = PPP_PROTO(skb);
 	switch (proto) {
@@ -1575,7 +1587,7 @@ ppp_decompress_frame(struct ppp *ppp, struct sk_buff *skb)
  err:
 	ppp->rstate |= SC_DC_ERROR;
 	ppp_receive_error(ppp);
-	return skb;
+	return NULL;
 }
 
 #ifdef CONFIG_PPP_MULTILINK

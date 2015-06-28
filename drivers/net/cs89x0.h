@@ -326,14 +326,35 @@
 
 #define RX_FRAME_PORT	0x0000
 #define TX_FRAME_PORT RX_FRAME_PORT
+
+#ifdef CONFIG_EXCALIBUR
+#define TX_CMD_PORT	0x0008
+#elif defined(CONFIG_ARCH_TA7S)
+#define TX_CMD_PORT	(0x0004*2)
+#else
 #define TX_CMD_PORT	0x0004
+#endif
+
 #define TX_NOW		0x0000       /*  Tx packet after   5 bytes copied */
 #define TX_AFTER_381	0x0040       /*  Tx packet after 381 bytes copied */
 #define TX_AFTER_ALL	0x00c0       /*  Tx packet after all bytes copied */
+
+#ifdef CONFIG_EXCALIBUR
+#define TX_LEN_PORT	0x000C
+#define ISQ_PORT	0x0010
+#define ADD_PORT	0x0014
+#define DATA_PORT	0x0018
+#elif defined(CONFIG_ARCH_TA7S)
+#define ADD_PORT	(0x000A*2)
+#define DATA_PORT	(0x000C*2)
+#define TX_LEN_PORT	(0x0006*2)
+#define ISQ_PORT	(0x0008*2)
+#else
 #define TX_LEN_PORT	0x0006
 #define ISQ_PORT	0x0008
 #define ADD_PORT	0x000A
 #define DATA_PORT	0x000C
+#endif
 
 #define EEPROM_WRITE_EN		0x00F0
 #define EEPROM_WRITE_DIS	0x0000

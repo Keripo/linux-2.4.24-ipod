@@ -69,11 +69,23 @@
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
+#ifdef CONFIG_LEDMAN
+#include <linux/ledman.h>
+#endif
 #include <asm/io.h>
 #include <asm/uaccess.h>
 
+/* do we want fast poll operation instead of interrupts */
+#if defined(CONFIG_SH_SECUREEDGE5410) || defined(CONFIG_MTD_NETtel) || \
+	defined(CONFIG_MTD_SNAPGEODE)
+#define FAST_POLL 1
+#endif
+#ifdef FAST_POLL
+#include <asm/fast_timer.h>
+#endif
+
 /* VLAN tagging feature enable/disable */
-#if defined(CONFIG_VLAN_8021Q) || defined(CONFIG_VLAN_8021Q_MODULE)
+#if defined(CONFIG_VLAN_8021Q) || defined(CONFIG_VLAN_8021Q_MODULE) 
 #define CP_VLAN_TAG_USED 1
 #define CP_VLAN_TX_TAG(tx_desc,vlan_tag_value) \
 	do { (tx_desc)->opts2 = (vlan_tag_value); } while (0)
@@ -178,6 +190,7 @@ enum {
 	TxThresh	= 0xEC, /* Early Tx threshold */
 	OldRxBufAddr	= 0x30, /* DMA address of Rx ring buffer (C mode) */
 	OldTSD0		= 0x10, /* DMA address of first Tx desc (C mode) */
+	MIIRegister	= 0xFC, /*The mii register */
 
 	/* Tx and Rx status descriptors */
 	DescOwn		= (1 << 31), /* Descriptor is owned by NIC */
@@ -292,6 +305,12 @@ enum {
 	LANWake         = (1 << 1),  /* Enable LANWake signal */
 	PMEStatus	= (1 << 0),  /* PME status can be reset by PCI RST# */
 
+	/* mii register */
+	MDO				= (1 << 26),  /* The mdio pin output */
+	MDI				= (1 << 25),  /* the mdio pin input */
+	MDC				= (1 << 24),  /* the mdio pin clock pin */
+	MDM				= (1 << 27),
+
 	cp_norx_intr_mask = PciErr | LinkChg | TxOK | TxErr | TxEmpty,
 	cp_rx_intr_mask = RxOK | RxErr | RxEmpty | RxFIFOOvr,
 	cp_intr_mask = cp_rx_intr_mask | cp_norx_intr_mask,
@@ -397,6 +416,10 @@ static void cp_clean_rings (struct cp_private *cp);
 static struct pci_device_id cp_pci_tbl[] = {
 	{ PCI_VENDOR_ID_REALTEK, PCI_DEVICE_ID_REALTEK_8139,
 	  PCI_ANY_ID, PCI_ANY_ID, 0, 0, },
+#if defined(CONFIG_MTD_NETtel) || defined(CONFIG_SH_SECUREEDGE5410)
+	{ PCI_VENDOR_ID_REALTEK, PCI_DEVICE_ID_REALTEK_8129,
+	  PCI_ANY_ID, PCI_ANY_ID, 0, 0, },
+#endif
 	{ },
 };
 MODULE_DEVICE_TABLE(pci, cp_pci_tbl);
@@ -420,6 +443,14 @@ static struct {
 	{ "rx_frags" },
 };
 
+#ifdef FAST_POLL
+static void
+fast_poll_8139cp(void *arg)
+{
+	static void cp_interrupt (int irq,void *dev_instance,struct pt_regs *regs);
+	cp_interrupt (-1, arg, NULL);
+}
+#endif
 
 #if CP_VLAN_TAG_USED
 static void cp_vlan_rx_register(struct net_device *dev, struct vlan_group *grp)
@@ -466,6 +497,15 @@ static inline void cp_rx_skb (struct cp_private *cp, struct sk_buff *skb,
 	cp->net_stats.rx_bytes += skb->len;
 	cp->dev->last_rx = jiffies;
 
+#ifdef FAST_POLL
+#if CP_VLAN_TAG_USED
+	if (cp->vlgrp && (desc->opts2 & RxVlanTagged)) {
+		vlan_hwaccel_rx(skb, cp->vlgrp,
+					 be16_to_cpu(desc->opts2 & 0xffff));
+	} else
+#endif
+		netif_rx(skb);
+#else
 #if CP_VLAN_TAG_USED
 	if (cp->vlgrp && (desc->opts2 & RxVlanTagged)) {
 		vlan_hwaccel_receive_skb(skb, cp->vlgrp,
@@ -473,6 +513,7 @@ static inline void cp_rx_skb (struct cp_private *cp, struct sk_buff *skb,
 	} else
 #endif
 		netif_receive_skb(skb);
+#endif
 }
 
 static void cp_rx_err_acct (struct cp_private *cp, unsigned rx_tail,
@@ -508,16 +549,31 @@ static inline unsigned int cp_rx_csum_ok (u32 status)
 	return 0;
 }
 
+#ifdef FAST_POLL
+static void cp_rx (struct cp_private *cp)
+#else
 static int cp_rx_poll (struct net_device *dev, int *budget)
+#endif
 {
+#ifdef FAST_POLL
+	unsigned rx_work = 16;
+#else
 	struct cp_private *cp = dev->priv;
-	unsigned rx_tail = cp->rx_tail;
 	unsigned rx_work = dev->quota;
 	unsigned rx;
+#endif
+	unsigned rx_tail = cp->rx_tail;
 
+#ifdef CONFIG_LEDMAN
+	ledman_cmd(LEDMAN_CMD_SET, (cp->dev->name[3] == '0') ?  LEDMAN_LAN1_RX :
+			((cp->dev->name[3] == '1') ?  LEDMAN_LAN2_RX : LEDMAN_LAN3_RX));
+#endif
+
+#ifndef FAST_POLL
 rx_status_loop:
 	rx = 0;
 	cpw16(IntrStatus, cp_rx_intr_mask);
+#endif
 
 	while (1) {
 		u32 status, len;
@@ -532,8 +588,19 @@ rx_status_loop:
 
 		desc = &cp->rx_ring[rx_tail];
 		status = le32_to_cpu(desc->opts1);
-		if (status & DescOwn)
+		if (status & DescOwn) {
+#if 0
+			/* Sometimes we get an interrupt, but the descriptor
+			 * doesnt have DescOwn cleared yet, so wait a bit and
+			 * try again. */
+			if (rx_work == 99) {
+				cp->net_stats.rx_fifo_errors++;
+				udelay(20);
+				continue;
+			}
+#endif
 			break;
+		}
 
 		len = (status & 0x1fff) - 4;
 		mapping = cp->rx_skb[rx_tail].mapping;
@@ -587,7 +654,9 @@ rx_status_loop:
 		cp->rx_skb[rx_tail].skb = new_skb;
 
 		cp_rx_skb(cp, skb, desc);
+#ifndef FAST_POLL
 		rx++;
+#endif
 
 rx_next:
 		cp->rx_ring[rx_tail].opts2 = 0;
@@ -605,13 +674,14 @@ rx_next:
 
 	cp->rx_tail = rx_tail;
 
+#ifndef FAST_POLL
 	dev->quota -= rx;
 	*budget -= rx;
 
 	/* if we did not reach work limit, then we're done with
 	 * this round of polling
 	 */
-	if (rx_work) {
+	if (rx_work > 0) {
 		if (cpr16(IntrStatus) & cp_rx_intr_mask)
 			goto rx_status_loop;
 
@@ -622,6 +692,7 @@ rx_next:
 	}
 
 	return 1;		/* not done */
+#endif
 }
 
 static irqreturn_t
@@ -639,15 +710,23 @@ cp_interrupt (int irq, void *dev_instance, struct pt_regs *regs)
 		printk(KERN_DEBUG "%s: intr, status %04x cmd %02x cpcmd %04x\n",
 		        dev->name, status, cpr8(Cmd), cpr16(CpCmd));
 
+#ifdef FAST_POLL
+	cpw16_f(IntrStatus, status);
+#else
 	cpw16(IntrStatus, status & ~cp_rx_intr_mask);
+#endif
 
 	spin_lock(&cp->lock);
 
 	if (status & (RxOK | RxErr | RxEmpty | RxFIFOOvr)) {
+#ifdef FAST_POLL
+		cp_rx(cp);
+#else
 		if (netif_rx_schedule_prep(dev)) {
 			cpw16_f(IntrMask, cp_norx_intr_mask);
 			__netif_rx_schedule(dev);
 		}
+#endif
 	}
 	if (status & (TxOK | TxErr | TxEmpty | SWInt))
 		cp_tx(cp);
@@ -673,6 +752,11 @@ static void cp_tx (struct cp_private *cp)
 {
 	unsigned tx_head = cp->tx_head;
 	unsigned tx_tail = cp->tx_tail;
+
+#ifdef CONFIG_LEDMAN
+	ledman_cmd(LEDMAN_CMD_SET, (cp->dev->name[3] == '0') ?  LEDMAN_LAN1_TX :
+			((cp->dev->name[3] == '1') ?  LEDMAN_LAN2_TX : LEDMAN_LAN3_TX));
+#endif
 
 	while (tx_tail != tx_head) {
 		struct sk_buff *skb;
@@ -1036,7 +1120,9 @@ static void cp_init_hw (struct cp_private *cp)
 
 	cpw16(MultiIntr, 0);
 
+#ifndef FAST_POLL
 	cpw16_f(IntrMask, cp_intr_mask);
+#endif
 
 	cpw8_f(Cfg9346, Cfg9346_Lock);
 }
@@ -1158,9 +1244,13 @@ static int cp_open (struct net_device *dev)
 
 	cp_init_hw(cp);
 
+#ifndef FAST_POLL
 	rc = request_irq(dev->irq, cp_interrupt, SA_SHIRQ, dev->name, dev);
 	if (rc)
 		goto err_out_hw;
+#else
+	fast_timer_add(fast_poll_8139cp, dev);
+#endif
 
 	netif_carrier_off(dev);
 	mii_check_media(&cp->mii_if, netif_msg_link(cp), TRUE);
@@ -1188,7 +1278,11 @@ static int cp_close (struct net_device *dev)
 	cp_stop_hw(cp);
 	spin_unlock_irq(&cp->lock);
 
+#ifndef FAST_POLL
 	free_irq(dev->irq, dev);
+#else
+	fast_timer_remove(fast_poll_8139cp, dev);
+#endif
 	cp_free_rings(cp);
 	return 0;
 }
@@ -1238,12 +1332,73 @@ static char mii_2_8139_map[8] = {
 	0
 };
 
+
+#ifdef CONFIG_8139CP_EXTERNAL_PHY
+
+/* MII serial management: mostly bogus for now. */
+/* Read and write the MII management registers using software-generated
+   serial MDIO protocol.
+   The maximum data clock rate is 25 Mhz.  The minimum timing is usually
+   met by back-to-back PCI I/O cycles, but we insert a delay to avoid
+   "overclocking" issues. */
+#define mdio_delay()	cpr32(MIIRegister)
+
+#define MAX_PHYID (31)
+
+/* Syncronize the MII management interface by shifting 32 one bits out. */
+static void mdio_cp_sync (struct cp_private *cp) {
+	int i;
+
+	for (i = 32; i >= 0; i--) {
+		cpw32 (MIIRegister, MDO|MDM);
+		mdio_delay ();
+		cpw32 (MIIRegister, MDO | MDC | MDM);
+		mdio_delay ();
+	}
+}
+#endif
+
+
 static int mdio_read(struct net_device *dev, int phy_id, int location)
 {
 	struct cp_private *cp = dev->priv;
 
+#ifdef CONFIG_8139CP_EXTERNAL_PHY
+	int mii_cmd = (0xf6 << 10) | (phy_id << 5) | location;
+	int i;
+	int retval = 0;
+
+	/* The CP can only use 32 external PHYs so try the internal */
+	if (phy_id <= MAX_PHYID) {
+		mdio_cp_sync (cp);
+		/* Shift the read command bits out. */
+		for (i = 15; i >= 0; i--) {
+			int dataval = (mii_cmd & (1 << i)) ? MDO : 0;
+
+			cpw32 (MIIRegister, dataval | MDM);
+			mdio_delay ();
+			cpw32 (MIIRegister, dataval | MDC | MDM);
+			mdio_delay ();
+		}
+
+		/* Read the two transition, 16 data, and wire-idle bits. */
+		for (i = 19; i > 0; i--) {
+			cpw32 (MIIRegister, 0);
+			mdio_delay ();
+			retval = (retval << 1) | ((cpr32 (MIIRegister) & MDI) ? 1 : 0);
+			cpw32 (MIIRegister, MDC);
+			mdio_delay ();
+		}
+		return (retval >> 1) & 0xffff;
+	} else {
+#endif
+
 	return location < 8 && mii_2_8139_map[location] ?
 	       readw(cp->regs + mii_2_8139_map[location]) : 0;
+#ifdef CONFIG_8139CP_EXTERNAL_PHY
+	}
+#endif
+
 }
 
 
@@ -1251,13 +1406,42 @@ static void mdio_write(struct net_device *dev, int phy_id, int location,
 		       int value)
 {
 	struct cp_private *cp = dev->priv;
+#ifdef CONFIG_8139CP_EXTERNAL_PHY
+	int mii_cmd = (0x5002 << 16) | (phy_id << 23) | (location << 18) | value;
+	int i;
 
+	/* If we select a valid internal phy */
+	if (phy_id <= MAX_PHYID) {
+		mdio_cp_sync (cp);
+
+
+		/* Shift the command bits out. */
+		for (i = 31; i >= 0; i--) {
+			int dataval =
+				(mii_cmd & (1 << i)) ? MDO : 0;
+			cpw32 (MIIRegister, dataval | MDM);
+			mdio_delay ();
+			cpw32 (MIIRegister, dataval | MDC | MDM);
+			mdio_delay ();
+		}
+		/* Clear out extra bits. */
+		for (i = 2; i > 0; i--) {
+			cpw32 (MIIRegister, 0|MDM);
+			mdio_delay ();
+			cpw32 (MIIRegister, MDC|MDM);
+			mdio_delay ();
+		}
+	} else {
+#endif
 	if (location == 0) {
 		cpw8(Cfg9346, Cfg9346_Unlock);
 		cpw16(BasicModeCtrl, value);
 		cpw8(Cfg9346, Cfg9346_Lock);
 	} else if (location < 8 && mii_2_8139_map[location])
 		cpw16(mii_2_8139_map[location], value);
+#ifdef CONFIG_8139CP_EXTERNAL_PHY
+	}
+#endif
 }
 
 /* Set the ethtool Wake-on-LAN settings */
@@ -1618,7 +1802,9 @@ static int cp_init_one (struct pci_dev *pdev, const struct pci_device_id *ent)
 	pci_read_config_byte(pdev, PCI_REVISION_ID, &pci_rev);
 
 	if (pdev->vendor == PCI_VENDOR_ID_REALTEK &&
-	    pdev->device == PCI_DEVICE_ID_REALTEK_8139 && pci_rev < 0x20) {
+	    	(pdev->device == PCI_DEVICE_ID_REALTEK_8139 ||
+			 	pdev->device == PCI_DEVICE_ID_REALTEK_8129)
+			 && pci_rev < 0x20) {
 		printk(KERN_ERR PFX "pci dev %s (id %04x:%04x rev %02x) is not an 8139C+ compatible chip\n",
 		       pci_name(pdev), pdev->vendor, pdev->device, pci_rev);
 		printk(KERN_ERR PFX "Try the \"8139too\" driver instead.\n");
@@ -1638,7 +1824,7 @@ static int cp_init_one (struct pci_dev *pdev, const struct pci_device_id *ent)
 	cp->mii_if.mdio_read = mdio_read;
 	cp->mii_if.mdio_write = mdio_write;
 	cp->mii_if.phy_id = CP_INTERNAL_PHY;
-	cp->mii_if.phy_id_mask = 0x1f;
+	cp->mii_if.phy_id_mask = 0x3f;
 	cp->mii_if.reg_num_mask = 0x1f;
 	cp_set_rxbufsize(cp);
 
@@ -1703,11 +1889,17 @@ static int cp_init_one (struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	cp_stop_hw(cp);
 
+#if defined(CONFIG_MTD_NETtel) || defined(CONFIG_SH_SECUREEDGE5410) || defined(CONFIG_MTD_SNAPGEODE)
+	/* Don't rely on the eeprom, get MAC from chip. */
+	for (i = 0; (i < 6); i++)
+		dev->dev_addr[i] = readb(regs + MAC0 + i);
+#else
 	/* read MAC address from EEPROM */
 	addr_len = read_eeprom (regs, 0, 8) == 0x8129 ? 8 : 6;
 	for (i = 0; i < 3; i++)
 		((u16 *) (dev->dev_addr))[i] =
 		    le16_to_cpu (read_eeprom (regs, i + 7, addr_len));
+#endif
 
 	dev->open = cp_open;
 	dev->stop = cp_close;
@@ -1715,8 +1907,10 @@ static int cp_init_one (struct pci_dev *pdev, const struct pci_device_id *ent)
 	dev->hard_start_xmit = cp_start_xmit;
 	dev->get_stats = cp_get_stats;
 	dev->do_ioctl = cp_ioctl;
+#ifndef FAST_POLL
 	dev->poll = cp_rx_poll;
 	dev->weight = 16;	/* arbitrary? from NAPI_HOWTO.txt. */
+#endif
 #ifdef BROKEN
 	dev->change_mtu = cp_change_mtu;
 #endif
@@ -1752,6 +1946,15 @@ static int cp_init_one (struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	/* enable busmastering and memory-write-invalidate */
 	pci_set_master(pdev);
+
+#ifdef CONFIG_8139CP_EXTERNAL_PHY
+	{
+		/* Check if external phy exists. */
+		int mii_status = mdio_read(dev, CONFIG_8139CP_PHY_NUM, 1);
+		if (mii_status != 0xffff  &&  mii_status != 0x0000)
+			cp->mii_if.phy_id = CONFIG_8139CP_PHY_NUM;
+	}
+#endif
 
 	if (cp->wol_enabled) cp_set_d3_state (cp);
 

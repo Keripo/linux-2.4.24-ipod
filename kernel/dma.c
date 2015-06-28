@@ -56,12 +56,17 @@ struct dma_chan {
 
 static struct dma_chan dma_chan_busy[MAX_DMA_CHANNELS] = {
 	{ 0, 0 },
+#if defined(CONFIG_M5307) || defined(CONFIG_M5407)
 	{ 0, 0 },
+	{ 0, 0 },
+#endif
+#ifndef CONFIG_UCLINUX
 	{ 0, 0 },
 	{ 0, 0 },
 	{ 1, "cascade" },
 	{ 0, 0 },
 	{ 0, 0 },
+#endif
 	{ 0, 0 }
 };
 
@@ -121,7 +126,7 @@ void free_dma(unsigned int dmanr)
 }
 
 int get_dma_list(char *buf)
-{	
+{
 	strcpy(buf, "No DMA\n");
 	return 7;
 }

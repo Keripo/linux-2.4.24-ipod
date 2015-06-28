@@ -4,7 +4,12 @@
 mainmenu_option next_comment
 comment 'USB support'
 
+if [ "$CONFIG_UCLINUX" = "y" ]; then
+tristate 'Support for USB' CONFIG_USB
+else
 dep_tristate 'Support for USB' CONFIG_USB $CONFIG_PCI
+fi
+
 if [ "$CONFIG_USB" = "y" -o  "$CONFIG_USB" = "m" ]; then
    bool '  USB verbose debug messages' CONFIG_USB_DEBUG
 

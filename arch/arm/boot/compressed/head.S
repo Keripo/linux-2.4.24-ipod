@@ -73,6 +73,13 @@
  */
 		str	\rb, [r3, #0x14]	@ UTDR
 		.endm
+#elif defined(CONFIG_ARCH_IXP425)
+		.macro	loadsp, rb
+		mov	\rb, #0xc8000000
+		.endm
+		.macro	writeb, rb
+		str	\rb, [r3, #0]
+		.endm
 #else
 #error no serial architecture defined
 #endif
@@ -343,7 +350,11 @@ __setup_mmu:	sub	r3, r4, #16384		@ Page directory size
 		orr	r1, r1, #3 << 10
 		add	r2, r3, #16384
 1:		cmp	r1, r8			@ if virt > start of RAM
+#ifdef CONFIG_XSCALE_CACHE_ERRATA
+		orrhs	r1, r1, #0x08		@ set cacheable, not bufferable
+#else
 		orrhs	r1, r1, #0x0c		@ set cacheable, bufferable
+#endif
 		cmp	r1, r9			@ if virt > end of RAM
 		bichs	r1, r1, #0x0c		@ clear cacheable, bufferable
 		str	r1, [r0], #4		@ 1:1 mapping
@@ -428,6 +439,11 @@ call_kernel:	bl	cache_clean_flush
 		mov	r0, #0
 		mov	r1, r7			@ restore architecture number
 		mov	pc, r4			@ call kernel
+
+		.type	proc_xscale_type,#object
+proc_xscale_type:
+		.word	0x69050000
+		.size	proc_xscale_type, . - proc_xscale_type
 
 /*
  * Here follow the relocatable cache support functions for the

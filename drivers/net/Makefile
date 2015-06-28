@@ -35,6 +35,10 @@ ifeq ($(CONFIG_BONDING),y)
   obj-y += bonding/bonding.o
 endif
 
+ifeq ($(CONFIG_KS8695),y)
+  obj-y += ks8695/ks8695e.o
+endif
+
 ifeq ($(CONFIG_ISDN_PPP),y)
   obj-$(CONFIG_ISDN) += slhc.o
 endif
@@ -54,6 +58,7 @@ subdir-$(CONFIG_SKFP) += skfp
 subdir-$(CONFIG_E100) += e100
 subdir-$(CONFIG_E1000) += e1000
 subdir-$(CONFIG_BONDING) += bonding
+subdir-$(CONFIG_KS8695) += ks8695
 
 #
 # link order important here
@@ -95,6 +100,10 @@ obj-$(CONFIG_STNIC) += stnic.o 8390.o
 obj-$(CONFIG_FEALNX) += fealnx.o mii.o
 obj-$(CONFIG_TC35815) += tc35815.o
 obj-$(CONFIG_TIGON3) += tg3.o
+
+mod-subdirs     +=	xilinx_enet
+subdir-$(CONFIG_XILINX_ENET) += xilinx_enet
+obj-$(CONFIG_XILINX_ENET) += xilinx_enet/xilinx_enet.o
 
 ifeq ($(CONFIG_E100),y)
   obj-y += e100/e100.o
@@ -152,9 +161,24 @@ obj-$(CONFIG_ES3210) += es3210.o 8390.o
 obj-$(CONFIG_LNE390) += lne390.o 8390.o
 obj-$(CONFIG_NE3210) += ne3210.o 8390.o
 obj-$(CONFIG_NET_SB1250_MAC) += sb1250-mac.o
+
+#
+# uClinux network drivers
+#
+obj-$(CONFIG_VIA_RHINE_FET) += linuxfet.o
+obj-$(CONFIG_ETH_S3C2500) += s3c2500.o
+obj-$(CONFIG_ETH_S3C4510) += s3c4510.o
+obj-$(CONFIG_ETH_S3C4530) += s3c4530.o
+obj-$(CONFIG_SMC91111) += smc91111.o
+obj-$(CONFIG_FEC) += fec.o
+obj-$(CONFIG_ETHER_NETARM) += netarmeth.o
+obj-$(CONFIG_ETHER_NS7520) += ns7520_eth.o
+obj-$(CONFIG_UCCS8900) += uCcs8900.o
+
 obj-$(CONFIG_B44) += b44.o
 
 obj-$(CONFIG_PPP) += ppp_generic.o slhc.o
+obj-$(CONFIG_PPP) += ppp_generic.o slhc.o ppp_mppe.o
 obj-$(CONFIG_PPP_ASYNC) += ppp_async.o
 obj-$(CONFIG_PPP_SYNC_TTY) += ppp_synctty.o
 obj-$(CONFIG_PPP_DEFLATE) += ppp_deflate.o
@@ -189,6 +213,7 @@ obj-$(CONFIG_EL3) += 3c509.o
 obj-$(CONFIG_3C515) += 3c515.o
 obj-$(CONFIG_EEXPRESS) += eexpress.o
 obj-$(CONFIG_EEXPRESS_PRO) += eepro.o
+obj-$(CONFIG_RTL8139) += rtl8139.o pci-scan.o
 obj-$(CONFIG_8139CP) += 8139cp.o mii.o
 obj-$(CONFIG_8139TOO) += 8139too.o mii.o
 obj-$(CONFIG_WAVELAN) += wavelan.o
@@ -219,7 +244,7 @@ obj-$(CONFIG_MVME147_NET) += mvme147.o 7990.o
 obj-$(CONFIG_EQUALIZER) += eql.o
 obj-$(CONFIG_MIPS_JAZZ_SONIC) += jazzsonic.o
 obj-$(CONFIG_MIPS_GT96100ETH) += gt96100eth.o
-obj-$(CONFIG_MIPS_AU1000_ENET) += au1000_eth.o
+obj-$(CONFIG_MIPS_AU1X00_ENET) += au1000_eth.o
 obj-$(CONFIG_SGI_IOC3_ETH) += ioc3-eth.o
 obj-$(CONFIG_BAGETLANCE) += bagetlance.o
 obj-$(CONFIG_DECLANCE) += declance.o
@@ -239,6 +264,7 @@ obj-$(CONFIG_ETHER00) +=ether00.o
 obj-$(CONFIG_DL2K) += dl2k.o
 obj-$(CONFIG_R8169) += r8169.o
 obj-$(CONFIG_AMD8111_ETH) += amd8111e.o mii.o
+obj-$(CONFIG_C5471_NET) += eth_c5471.o eth_c5471hw.o
 
 # non-drivers/net drivers who want mii lib
 obj-$(CONFIG_PCMCIA_SMC91C92) += mii.o

@@ -5,10 +5,17 @@
  *
  *	2001 - Documented with DocBook
  *	- Brad Douglas <brad@neruo.com>
- *
+ * changes for _NO_MM_ in fb_mmap by <uclinux@schoeldgen.de> Mar 2002
+ * included support for DragonBall (MC68EZ328) framebuffer initialization
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file COPYING in the main directory of this archive
  * for more details.
+ * CHANGES
+ * 20030312
+ *    - Added support for the EPSON S1D13706 framebuffer driver for
+ *      our COBRA5272 board (the s1d13706fb* stuff).
+ *      ATTENTION! This is _very_ experimental, currently!
+ *    (hede)
  */
 
 #include <linux/config.h>
@@ -53,6 +60,10 @@ extern int amifb_init(void);
 extern int amifb_setup(char*);
 extern int atafb_init(void);
 extern int atafb_setup(char*);
+extern int m68328fb_init(void);
+extern void m68328fb_setup(char*);
+extern int mc68x328fb_init(void);
+extern void mc68x328fb_setup(char*);
 extern int macfb_init(void);
 extern int macfb_setup(char*);
 extern int cyberfb_init(void);
@@ -134,6 +145,8 @@ extern int intelfb_init(void);
 extern int intelfb_setup(char*);
 extern int e1355fb_init(void);
 extern int e1355fb_setup(char*);
+extern int mq200fb_init(void);
+extern int mq200fb_setup(char*);
 extern int e1356fb_init(void);
 extern int e1356fb_setup(char*);
 extern int au1100fb_init(void);
@@ -142,6 +155,16 @@ extern int pvr2fb_init(void);
 extern int pvr2fb_setup(char*);
 extern int sstfb_init(void);
 extern int sstfb_setup(char*);
+extern int s3c44b0xfb_init(void);
+extern int s3c44b0xfb_setup(char*);
+#if defined(CONFIG_FB_COBRA5272) && defined(CONFIG_FB_S1D13706)
+/* 
+ * Again: This is _really_ experimental!
+ * Feedback really welcome!
+ */
+extern int s1d13706fb_init(void);
+extern int s1d13706fb_setup(char*);
+#endif
 
 static struct {
 	const char *name;
@@ -166,6 +189,9 @@ static struct {
 #endif
 #ifdef CONFIG_FB_AMIGA
 	{ "amifb", amifb_init, amifb_setup },
+#endif
+#ifdef CONFIG_FB_CLPS711X
+	{ "clps711xfb", clps711xfb_init, NULL },
 #endif
 #ifdef CONFIG_FB_CYBER
 	{ "cyber", cyberfb_init, cyberfb_setup },
@@ -244,7 +270,12 @@ static struct {
 	 * _after_ all other frame buffer devices that use resource
 	 * management!
 	 */
-
+#ifdef CONFIG_FB_M68328
+	{ "68328fb", m68328fb_init,m68328fb_setup },
+#endif
+#ifdef CONFIG_FB_MC68X328
+	{ "mc68x328fb", mc68x328fb_init, mc68x328fb_setup },
+#endif
 #ifdef CONFIG_FB_OF
 	{ "offb", offb_init, NULL },
 #endif
@@ -325,7 +356,12 @@ static struct {
 #ifdef CONFIG_FB_AU1100
 	{ "au1100fb", au1100fb_init, au1100fb_setup },
 #endif 
-
+#ifdef CONFIG_FB_S3C44B0X
+	{ "s3c44b0xfb", s3c44b0xfb_init, s3c44b0xfb_setup },
+#endif 
+#if defined(CONFIG_FB_COBRA5272) && defined(CONFIG_FB_S1D13706)
+	{ "s1d13706fb", s1d13706fb_init, s1d13706fb_setup },
+#endif
 
 	/*
 	 * Generic drivers that don't use resource management (yet)
@@ -349,6 +385,18 @@ static struct {
 	 * other display devices are present
 	 */
 	{ "vfb", vfb_init, vfb_setup },
+#endif
+
+#ifdef CONFIG_FB_VIRUAL_SMALL
+	/*
+	 * Vfb must be last to avoid that it becomes your primary display if
+	 * other display devices are present
+	 */
+	{ "vfb_small", vfb_small_init, vfb_small_setup },
+#endif
+
+#ifdef CONFIG_FB_MQ200
+	{ "mq200fb", mq200fb_init, mq200fb_setup },
 #endif
 };
 
@@ -573,13 +621,18 @@ fb_mmap(struct file *file, struct vm_area_struct * vma)
 	int fbidx = GET_FB_IDX(file->f_dentry->d_inode->i_rdev);
 	struct fb_info *info = registered_fb[fbidx];
 	struct fb_ops *fb = info->fbops;
-	unsigned long off;
+	unsigned long off = 0;
 #if !defined(__sparc__) || defined(__sparc_v9__)
 	struct fb_fix_screeninfo fix;
 	struct fb_var_screeninfo var;
 	unsigned long start;
 	u32 len;
 #endif
+#ifdef NO_MM 
+	fb->fb_get_fix(&fix, PROC_CONSOLE(info), info);
+	vma->vm_start = fix.smem_start+ vma->vm_offset;
+	return (0);
+#else /* /NO_MM */   
 
 	if (vma->vm_pgoff > (~0UL >> PAGE_SHIFT))
 		return -EINVAL;
@@ -605,7 +658,6 @@ fb_mmap(struct file *file, struct vm_area_struct * vma)
 
 	lock_kernel();
 	fb->fb_get_fix(&fix, PROC_CONSOLE(info), info);
-
 	/* frame buffer memory */
 	start = fix.smem_start;
 	len = PAGE_ALIGN((start & ~PAGE_MASK)+fix.smem_len);
@@ -669,9 +721,11 @@ fb_mmap(struct file *file, struct vm_area_struct * vma)
 	if (io_remap_page_range(vma->vm_start, off,
 			     vma->vm_end - vma->vm_start, vma->vm_page_prot))
 		return -EAGAIN;
+
 #endif /* !__sparc_v9__ */
 	return 0;
 #endif /* !sparc32 */
+#endif
 }
 
 #if 1 /* to go away in 2.5.0 */
@@ -795,7 +849,9 @@ register_framebuffer(struct fb_info *fb_info)
 
 	if (first) {
 		first = 0;
+#ifdef CONFIG_CONSOLE
 		take_over_console(&fb_con, first_fb_vc, last_fb_vc, fbcon_is_default);
+#endif
 	}
 	sprintf (name_buf, "%d", i);
 	fb_info->devfs_handle =

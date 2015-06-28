@@ -14,6 +14,20 @@
 
 	.section	.empty_zero_page, "aw"
 ENTRY(empty_zero_page)
+#ifdef CONFIG_BLK_DEV_INITRD
+	.long	1		/* MOUNT_ROOT_RDONLY */
+	.long	0x4000		/* RAMDISK_FLAGS */
+	.long	0x0100		/* ORIG_ROOT_DEV */
+	.long	1		/* LOADER_TYPE */
+#if defined(CONFIG_SH_SNAPGEAR)
+	.long	_end		/* INITRD_START */
+	.long	0x000000	/* INITRD_SIZE */
+#else
+	.long	0x00360000	/* INITRD_START */
+	.long	0x000a0000	/* INITRD_SIZE */
+#endif
+	.long	0
+#else
 	.long	1		/* MOUNT_ROOT_RDONLY */
 	.long	0		/* RAMDISK_FLAGS */
 	.long	0x0200		/* ORIG_ROOT_DEV */
@@ -21,8 +35,22 @@ ENTRY(empty_zero_page)
 	.long	0x00360000	/* INITRD_START */
 	.long	0x000a0000	/* INITRD_SIZE */
 	.long	0
-	.balign 4096,0,4096
+#endif
+#if defined(CONFIG_SH_SNAPGEAR)
+	.balign 256,0,256
+cmdline:
+#if defined(CONFIG_SH_SECUREEDGE5410)
+# if defined(CONFIG_SH_CONSOLE_TTYSC0)
+	.ascii	"mem=16M console=ttySC0,57600\0"
+# else
+	.ascii	"mem=16M console=ttySC1,57600\0"
+# endif
+#else
+	.ascii	"mem=32M console=ttySC1,57600\0"
+#endif
+#endif
 
+	.balign 4096,0,4096
 	.text	
 /*
  * Condition at the entry of _stext:
@@ -53,7 +81,13 @@ ENTRY(_stext)
 	!			Enable cache
 	mov.l	6f, r0
 	jsr	@r0
-	 nop
+	nop
+#if defined(CONFIG_SH_SNAPGEAR)
+	! move the romfs to after the bss
+	mov.l	fix_romfs, r0
+	jsr @r0
+#endif
+	nop
 	!			Clear BSS area
 	mov.l	3f, r1
 	add	#4, r1
@@ -61,11 +95,11 @@ ENTRY(_stext)
 	mov	#0, r0
 9:	cmp/hs	r2, r1
 	bf/s	9b		! while (r1 < r2)
-	 mov.l	r0,@-r2
+	mov.l	r0,@-r2
 	!			Start kernel
 	mov.l	5f, r0
 	jmp	@r0
-	 nop
+	nop
 
 	.balign 4
 1:	.long	0x400080F0		! MD=1, RB=0, BL=0, FD=1, IMASK=0xF
@@ -74,3 +108,6 @@ ENTRY(_stext)
 4:	.long	SYMBOL_NAME(_end)
 5:	.long	SYMBOL_NAME(start_kernel)
 6:	.long	SYMBOL_NAME(cache_init)
+#if defined(CONFIG_SH_SNAPGEAR)
+fix_romfs: .long copy_romfs
+#endif

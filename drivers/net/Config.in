@@ -24,11 +24,41 @@ mainmenu_option next_comment
 comment 'Ethernet (10 or 100Mbit)'
 bool 'Ethernet (10 or 100Mbit)' CONFIG_NET_ETHERNET
 if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
+
+   if [ "$CONFIG_CPU_S3C2500" = "y" ]; then
+      bool '  Samsung S3C2500 Embedded Ethernet support' CONFIG_ETH_S3C2500
+      if [ "$CONFIG_UCBOOTSTRAP" != "y" ]; then
+         string 'S3C2500 MAC Address' S3C2500_HWADDR 00:00:00:00:00:00
+      fi
+   fi
+   if [ "$CONFIG_CPU_S3C4510" = "y" ]; then
+      tristate '  Samsung 4510B ethernet support' CONFIG_ETH_S3C4510
+   fi
+   if [ "$CONFIG_CPU_S3C4530" = "y" ]; then
+      bool '  Samsung S3C4530A Embedded Ethernet support' CONFIG_ETH_S3C4530
+      if [ "$CONFIG_UCBOOTSTRAP" != "y" ]; then
+         string 'S3C4530 MAC Address' S3C4530_HWADDR 00:00:00:00:00:00
+      fi
+   fi
    if [ "$CONFIG_ARM" = "y" ]; then  
+      if [ "$CONFIG_ARCH_KS8695" = "y" ]; then
+         tristate '  KS8695 internal ethernet support' CONFIG_KS8695
+         if [ "$CONFIG_KS8695" = "y" -o "$CONFIG_KS8695" = "m" ]; then
+            bool '    Hardware IP/TCP/UDP checksum' CONFIG_CSUM_UNNECESSARY
+         fi
+      fi
       dep_bool '  ARM EBSA110 AM79C961A support' CONFIG_ARM_AM79C961A $CONFIG_ARCH_EBSA110
       tristate '  Cirrus Logic CS8900A support' CONFIG_ARM_CIRRUS
       if [ "$CONFIG_ARCH_ACORN" = "y" ]; then
          source drivers/acorn/net/Config.in
+      fi
+      if [ "$CONFIG_ARCH_C5471" = "y" ]; then
+         tristate 'C5471 LAN ethernet' CONFIG_C5471_NET
+         if [ "$CONFIG_C5471_NET" = "y" ]; then
+           int 'C5471 LAN rate (0=Auto,10,100)' C5471_LAN_RATE 0
+         else
+           define_hex C5471_LAN_RATE 0x00000000
+         fi
       fi
    fi
    if [ "$CONFIG_ARCH_CAMELOT" = "y" ]; then
@@ -62,8 +92,8 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
    if [ "$CONFIG_MIPS_GT96100" = "y" ]; then
       bool '  MIPS GT96100 Ethernet support' CONFIG_MIPS_GT96100ETH
    fi
-   if [ "$CONFIG_MIPS_AU1000" = "y" ]; then
-      bool '  MIPS AU1000 Ethernet support' CONFIG_MIPS_AU1000_ENET
+   if [ "$CONFIG_SOC_AU1X00" = "y" ]; then
+      bool '  MIPS Au1x00 Ethernet support' CONFIG_MIPS_AU1X00_ENET
    fi
    if [ "$CONFIG_SIBYTE_SB1250" = "y" ]; then
       tristate '  SB1250 Ethernet support' CONFIG_NET_SB1250_MAC
@@ -116,6 +146,7 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       dep_tristate '    SMC Ultra support' CONFIG_ULTRA $CONFIG_ISA
       dep_tristate '    SMC Ultra32 EISA support' CONFIG_ULTRA32 $CONFIG_EISA
       dep_tristate '    SMC 9194 support' CONFIG_SMC9194 $CONFIG_ISA
+      tristate     '    SMC 91111 support' CONFIG_SMC91111
    fi
    bool '  Racal-Interlan (Micom) NI cards' CONFIG_NET_VENDOR_RACAL
    if [ "$CONFIG_NET_VENDOR_RACAL" = "y" ]; then
@@ -198,11 +229,18 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       dep_tristate '    Novell/Eagle/Microdyne NE3210 EISA support (EXPERIMENTAL)' CONFIG_NE3210 $CONFIG_EISA $CONFIG_EXPERIMENTAL
       dep_tristate '    Racal-Interlan EISA ES3210 support (EXPERIMENTAL)' CONFIG_ES3210 $CONFIG_EISA $CONFIG_EXPERIMENTAL
       dep_tristate '    RealTek RTL-8139 C+ PCI Fast Ethernet Adapter support (EXPERIMENTAL)' CONFIG_8139CP $CONFIG_PCI $CONFIG_EXPERIMENTAL
+      dep_bool '      Support for External PHY' CONFIG_8139CP_EXTERNAL_PHY $CONFIG_8139CP $CONFIG_EXPERIMENTAL
+	  if [ "$CONFIG_8139CP_EXTERNAL_PHY" = "y" ]; then
+        int '        The CP uses this Phy' CONFIG_8139CP_PHY_NUM 32
+	  else
+		define_int CONFIG_8139CP_PHY_NUM 32
+	  fi
       dep_tristate '    RealTek RTL-8139 PCI Fast Ethernet Adapter support' CONFIG_8139TOO $CONFIG_PCI
       dep_mbool '      Use PIO instead of MMIO' CONFIG_8139TOO_PIO $CONFIG_8139TOO
       dep_mbool '      Support for uncommon RTL-8139 rev. K (automatic channel equalization)' CONFIG_8139TOO_TUNE_TWISTER $CONFIG_8139TOO
       dep_mbool '      Support for older RTL-8129/8130 boards' CONFIG_8139TOO_8129 $CONFIG_8139TOO
       dep_mbool '      Use older RX-reset method' CONFIG_8139_OLD_RX_RESET $CONFIG_8139TOO
+      dep_tristate '    ORIGINAL RealTek RTL-8139 PCI Fast Ethernet Adapter support' CONFIG_RTL8139 $CONFIG_PCI
       dep_tristate '    SiS 900/7016 PCI Fast Ethernet Adapter support' CONFIG_SIS900 $CONFIG_PCI
       dep_tristate '    SMC EtherPower II' CONFIG_EPIC100 $CONFIG_PCI
       dep_tristate '    Sundance Alta support' CONFIG_SUNDANCE $CONFIG_PCI
@@ -214,6 +252,7 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
          dep_tristate '    TOSHIBA TC35815 Ethernet support' CONFIG_TC35815 $CONFIG_PCI
       fi
       dep_tristate '    VIA Rhine support' CONFIG_VIA_RHINE $CONFIG_PCI
+      dep_tristate '    VIA Rhine FET support' CONFIG_VIA_RHINE_FET $CONFIG_PCI
       dep_mbool '      Use MMIO instead of PIO (EXPERIMENTAL)' CONFIG_VIA_RHINE_MMIO $CONFIG_VIA_RHINE $CONFIG_EXPERIMENTAL
       dep_tristate '    Winbond W89c840 Ethernet support' CONFIG_WINBOND_840 $CONFIG_PCI
       if [ "$CONFIG_OBSOLETE" = "y" ]; then
@@ -230,6 +269,35 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       fi
       dep_tristate '    D-Link DE600 pocket adapter support' CONFIG_DE600 $CONFIG_ISA
       dep_tristate '    D-Link DE620 pocket adapter support' CONFIG_DE620 $CONFIG_ISA
+   fi
+   bool '  FEC ethernet controller (of ColdFire 5272/5282/5280)' CONFIG_FEC
+   if [ "$CONFIG_FEC" = "y" ]; then
+	dep_mbool '   enable IOCTL (EXPERIMENTAL)'  CONFIG_FEC_IOCTL $CONFIG_EXPERIMENTAL
+	dep_mbool '   uCdimm PHY interrupt support (uC5272 v1.3 +) '  CONFIG_UC5272_PHY_INT $CONFIG_BOARD_UC5272 
+	bool      '   Micrel KS8995M switch chip support' CONFIG_FEC_KS8995M
+	if [ "$CONFIG_FEC_KS8995M" = "y" ]; then
+		choice 'KS8995M MII Mode' \
+		"MII-P5 CONFIG_FEC_KS8995M_P5 \
+		MII-SW CONFIG_FEC_KS8995M_SW" MII-P5
+	fi
+   fi
+   tristate '  CS89x0 support' CONFIG_CS89x0
+   bool '  uCcs8900 support' CONFIG_UCCS8900
+   if [ "$CONFIG_CS89x0" = "y" -o "$CONFIG_UCCS8900" = "y" ]; then
+      bool '    Hardware byte-swapping support for CS89x0 Ethernet' CONFIG_UCCS89x0_HW_SWAP
+   fi
+   if [ "$CONFIG_UCCS8900" = "y" -a "$CONFIG_UCBOOTSTRAP" != "y" ]; then
+      string 'CS8900A MAC Address' CS8900A_HWADDR 00:00:00:00:00:00
+   fi
+
+   if [ "$CONFIG_ARCH_NETARM" = "y" ]; then
+      tristate 'NET+ARM built-in Ethernet controller' CONFIG_ETHER_NETARM
+      if [ "$CONFIG_ETHER_NETARM" = "y" ]; then
+         hex 'hexadecimal MAC OUI' NETARM_OUI 0040AF
+      fi
+   fi
+   if [ "$CONFIG_NETARM_NS7520" = "y" ]; then
+      tristate 'NS7520 built-in Ethernet controller' CONFIG_ETHER_NS7520
    fi
    if [ "$CONFIG_SGI_IP22" = "y" ]; then
       bool '  SGI Seeq ethernet controller support' CONFIG_SGISEEQ

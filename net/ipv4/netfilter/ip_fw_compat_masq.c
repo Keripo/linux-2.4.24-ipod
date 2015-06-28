@@ -253,14 +253,17 @@ masq_iterate(const struct ip_conntrack_tuple_hash *hash,
 	if (DIRECTION(hash))
 		return 0;
 
-	if ((*upto)++ < offset)
+	if (*upto < offset) {
+		(*upto)++;
 		return 0;
+	}
 
 	newlen = print_masq(buffer + *len, hash->ctrack);
 	if (*len + newlen > maxlen)
 		return 1;
-	else *len += newlen;
 
+	*len += newlen;
+	(*upto)++;
 	return 0;
 }
 
@@ -270,7 +273,7 @@ masq_procinfo(char *buffer, char **start, off_t offset, int length)
 {
 	unsigned int i;
 	int len = 0;
-	off_t upto = 1;
+	off_t upto = 0;
 
 	/* Header: first record */
 	if (offset == 0) {
@@ -279,8 +282,12 @@ masq_procinfo(char *buffer, char **start, off_t offset, int length)
 		sprintf(temp,
 			"Prc FromIP   FPrt ToIP     TPrt Masq Init-seq  Delta PDelta Expires (free=0,0,0)");
 		len = sprintf(buffer, "%-127s\n", temp);
-		offset = 1;
+		if (len > length) {
+			len = 0;
+			goto finished;
+		}
 	}
+	upto++;
 
 	READ_LOCK(&ip_conntrack_lock);
 	/* Traverse hash; print originals then reply. */
@@ -292,6 +299,7 @@ masq_procinfo(char *buffer, char **start, off_t offset, int length)
 	}
 	READ_UNLOCK(&ip_conntrack_lock);
 
+ finished:
 	/* `start' hack - see fs/proc/generic.c line ~165 */
 	*start = (char *)((unsigned int)upto - offset);
 	return len;

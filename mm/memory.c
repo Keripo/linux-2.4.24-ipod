@@ -119,11 +119,11 @@ static inline void free_one_pgd(pgd_t * dir)
 		return;
 	}
 	pmd = pmd_offset(dir, 0);
-	pgd_clear(dir);
 	for (j = 0; j < PTRS_PER_PMD ; j++) {
 		prefetchw(pmd+j+(PREFETCH_STRIDE/16));
 		free_one_pmd(pmd+j);
 	}
+	pgd_clear(dir);
 	pmd_free(pmd);
 }
 
@@ -275,8 +275,16 @@ cont_copy_pmd_range:	src_pmd++;
 out_unlock:
 	spin_unlock(&src->page_table_lock);
 out:
+#ifdef __arm__
+	memc_update_mm(src);
+	memc_update_mm(dst);
+#endif
 	return 0;
 nomem:
+#ifdef __arm__
+	memc_update_mm(src);
+	memc_update_mm(dst);
+#endif
 	return -ENOMEM;
 }
 
@@ -397,6 +405,9 @@ void zap_page_range(struct mm_struct *mm, unsigned long address, unsigned long s
 	else
 		mm->rss = 0;
 	spin_unlock(&mm->page_table_lock);
+#ifdef __arm__
+	memc_update_mm(mm);
+#endif
 }
 
 /*
@@ -814,6 +825,9 @@ int zeromap_page_range(unsigned long address, unsigned long size, pgprot_t prot)
 	} while (address && (address < end));
 	spin_unlock(&mm->page_table_lock);
 	flush_tlb_range(mm, beg, end);
+#ifdef __arm__
+	memc_update_mm(current->mm);
+#endif
 	return error;
 }
 
@@ -896,6 +910,9 @@ int remap_page_range(unsigned long from, unsigned long phys_addr, unsigned long 
 	} while (from && (from < end));
 	spin_unlock(&mm->page_table_lock);
 	flush_tlb_range(mm, beg, end);
+#ifdef __arm__
+	memc_update_mm(current->mm);
+#endif
 	return error;
 }
 
@@ -912,6 +929,9 @@ static inline void establish_pte(struct vm_area_struct * vma, unsigned long addr
 	set_pte(page_table, entry);
 	flush_tlb_page(vma, address);
 	update_mmu_cache(vma, address, entry);
+#ifdef __arm__
+	memc_update_addr(vma->vm_mm, entry, address);
+#endif
 }
 
 /*
@@ -1178,6 +1198,9 @@ static int do_swap_page(struct mm_struct * mm,
 
 	/* No need to invalidate - it was non-present before */
 	update_mmu_cache(vma, address, pte);
+#ifdef __arm__
+	memc_update_addr(vma->vm_mm, pte, address);
+#endif
 	spin_unlock(&mm->page_table_lock);
 	return ret;
 }
@@ -1223,6 +1246,9 @@ static int do_anonymous_page(struct mm_struct * mm, struct vm_area_struct * vma,
 
 	/* No need to invalidate - it was non-present before */
 	update_mmu_cache(vma, addr, entry);
+#ifdef __arm__
+	memc_update_addr(vma->vm_mm, *page_table, addr);
+#endif
 	spin_unlock(&mm->page_table_lock);
 	return 1;	/* Minor fault */
 
@@ -1304,6 +1330,9 @@ static int do_no_page(struct mm_struct * mm, struct vm_area_struct * vma,
 
 	/* no need to invalidate: a not-present page shouldn't be cached */
 	update_mmu_cache(vma, address, entry);
+#ifdef __arm__
+	memc_update_addr(vma->vm_mm, *page_table, address);
+#endif
 	spin_unlock(&mm->page_table_lock);
 	return 2;	/* Major fault */
 }

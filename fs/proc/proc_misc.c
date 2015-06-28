@@ -185,8 +185,10 @@ static int meminfo_read_proc(char *page, char **start, off_t off,
 		"MemFree:      %8lu kB\n"
 		"MemShared:    %8lu kB\n"
 		"Buffers:      %8lu kB\n"
+#ifndef NO_MM
 		"Cached:       %8lu kB\n"
 		"SwapCached:   %8lu kB\n"
+#endif /* NO_MM */
 		"Active:       %8u kB\n"
 		"Inactive:     %8u kB\n"
 		"HighTotal:    %8lu kB\n"
@@ -199,8 +201,10 @@ static int meminfo_read_proc(char *page, char **start, off_t off,
 		K(i.freeram),
 		K(i.sharedram),
 		K(i.bufferram),
+#ifndef NO_MM
 		K(pg_size - swapper_space.nrpages),
 		K(swapper_space.nrpages),
+#endif /* NO_MM */
 		K(nr_active_pages),
 		K(nr_inactive_pages),
 		K(i.totalhigh),

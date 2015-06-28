@@ -1426,7 +1426,7 @@ static void net_tx_action(struct softirq_action *h)
 
 
 #if defined(CONFIG_BRIDGE) || defined(CONFIG_BRIDGE_MODULE)
-void (*br_handle_frame_hook)(struct sk_buff *skb) = NULL;
+int (*br_handle_frame_hook)(struct sk_buff *skb) = NULL;
 #endif
 
 static __inline__ int handle_bridge(struct sk_buff *skb,
@@ -1443,7 +1443,6 @@ static __inline__ int handle_bridge(struct sk_buff *skb,
 		}
 	}
 
-	br_handle_frame_hook(skb);
 	return ret;
 }
 
@@ -1503,7 +1502,12 @@ int netif_receive_skb(struct sk_buff *skb)
 #if defined(CONFIG_BRIDGE) || defined(CONFIG_BRIDGE_MODULE)
 	if (skb->dev->br_port != NULL &&
 	    br_handle_frame_hook != NULL) {
-		return handle_bridge(skb, pt_prev);
+		int ret;
+
+		ret = handle_bridge(skb, pt_prev);
+		if (br_handle_frame_hook(skb) == 0)
+			return ret;
+		pt_prev = NULL;
 	}
 #endif
 

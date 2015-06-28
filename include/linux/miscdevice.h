@@ -14,6 +14,7 @@
 #define PC110PAD_MINOR		9
 #define ADB_MOUSE_MINOR		10
 #define MK712_MINOR 		15	/* MK712 touch screen */
+#define MBA44B0_TS_MINOR        16      /* MBA44B0 touch screen */
 #define SYNTH_MINOR    		25
 #define WATCHDOG_MINOR		130	/* Watchdog timer     */
 #define TEMP_MINOR		131	/* Temperature Sensor */

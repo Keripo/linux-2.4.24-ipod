@@ -21,7 +21,6 @@
 #include <linux/config.h>
 
 
-#define NUM_INTERFACES 2
 #define MAC_IOSIZE 0x10000
 #define NUM_RX_DMA 4       /* Au1000 has 4 rx hardware descriptors */
 #define NUM_TX_DMA 4       /* Au1000 has 4 tx hardware descriptors */

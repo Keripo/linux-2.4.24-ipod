@@ -517,6 +517,8 @@ ENTRY(cpu_arm1026_set_pte)
 	mov	pc, lr
 
 
+cpu_manu_name:
+	.asciz	"ARM"
 ENTRY(cpu_arm1026_name)
 	.ascii	"ARM1026EJ-S"
 #ifndef CONFIG_CPU_ICACHE_DISABLE
@@ -628,7 +630,7 @@ arm1026_processor_functions:
 
 	.type	cpu_arm1026_info, #object
 cpu_arm1026_info:
-	.long	0
+	.long	cpu_manu_name
 	.long	cpu_arm1026_name
 	.size	cpu_arm1026_info, . - cpu_arm1026_info
 

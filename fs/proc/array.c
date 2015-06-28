@@ -50,6 +50,8 @@
  * Al Viro & Jeff Garzik :  moved most of the thing into base.c and
  *			 :  proc_misc.c. The rest may eventually go into
  *			 :  base.c too.
+ *
+ * David McCullough  :  added NO_MM support <davidm@snapgear.com>
  */
 
 #include <linux/config.h>
@@ -179,6 +181,7 @@ static inline char * task_state(struct task_struct *p, char *buffer)
 
 static inline char * task_mem(struct mm_struct *mm, char *buffer)
 {
+#ifndef NO_MM
 	struct vm_area_struct * vma;
 	unsigned long data = 0, stack = 0;
 	unsigned long exec = 0, lib = 0;
@@ -215,6 +218,54 @@ static inline char * task_mem(struct mm_struct *mm, char *buffer)
 		data - stack, stack,
 		exec - lib, lib);
 	up_read(&mm->mmap_sem);
+#else
+	unsigned long bytes = 0, sbytes = 0, slack = 0;
+	struct mm_tblock_struct * tblock;
+        
+	/* Logic: we've got two memory sums for each process, "shared", and
+	 * "non-shared". Shared memory may get counted more then once, for
+	 * each process that owns it. Non-shared memory is counted
+	 * accurately.
+	 *
+	 *	-- Kenneth Albanowski
+	 */
+
+	down_read(&mm->mmap_sem);
+	for (tblock = &mm->tblock; tblock; tblock = tblock->next) {
+		if (tblock->rblock) {
+			bytes += ksize(tblock);
+			if (atomic_read(&mm->mm_count) > 1 ||
+					tblock->rblock->refcount > 1) {
+				sbytes += ksize(tblock->rblock->kblock);
+				sbytes += ksize(tblock->rblock) ;
+			} else {
+				bytes += ksize(tblock->rblock->kblock);
+				bytes += ksize(tblock->rblock) ;
+				slack += ksize(tblock->rblock->kblock) - tblock->rblock->size;
+			}
+		}
+	}
+	
+	((atomic_read(&mm->mm_count) > 1) ? sbytes : bytes)
+			+= ksize(mm);
+	(current->fs && atomic_read(&current->fs->count) > 1 ? sbytes : bytes)
+			+= ksize(current->fs);
+	(current->files && atomic_read(&current->files->count) > 1 ? sbytes : bytes)
+			+= ksize(current->files);
+	(current->sig && atomic_read(&current->sig->count) > 1 ? sbytes : bytes)
+			+= ksize(current->sig);
+	bytes += ksize(current); /* includes kernel stack */
+
+	buffer += sprintf(buffer,
+		"Mem:\t%8lu bytes\n"
+		"Slack:\t%8lu bytes\n"
+		"Shared:\t%8lu bytes\n",
+		bytes,
+		slack,
+		sbytes);
+
+	up_read(&mm->mmap_sem);
+#endif
 	return buffer;
 }
 
@@ -321,13 +372,28 @@ int proc_pid_stat(struct task_struct *task, char * buffer)
 	}
 	task_unlock(task);
 	if (mm) {
+#ifndef NO_MM
 		struct vm_area_struct *vma;
+#endif
 		down_read(&mm->mmap_sem);
+#ifndef NO_MM
 		vma = mm->mmap;
 		while (vma) {
 			vsize += vma->vm_end - vma->vm_start;
 			vma = vma->vm_next;
 		}
+#else /* !NO_MM */
+		vsize = 0;
+		{
+			struct mm_tblock_struct *tbp = &mm->tblock;
+
+			while (tbp) {
+				if (tbp->rblock)
+					vsize += ksize(tbp->rblock->kblock);
+				tbp = tbp->next;
+			}
+		}
+#endif /* !NO_MM */
 		eip = KSTK_EIP(task);
 		esp = KSTK_ESP(task);
 		up_read(&mm->mmap_sem);
@@ -397,6 +463,8 @@ int proc_pid_stat(struct task_struct *task, char * buffer)
 	return res;
 }
 		
+#ifndef NO_MM
+
 static inline void statm_pte_range(pmd_t * pmd, unsigned long address, unsigned long size,
 	int * pages, int * shared, int * dirty, int * total)
 {
@@ -472,6 +540,8 @@ static void statm_pgd_range(pgd_t * pgd, unsigned long address, unsigned long en
 	}
 }
 
+#endif /* !NO_MM */
+
 int proc_pid_statm(struct task_struct *task, char * buffer)
 {
 	struct mm_struct *mm;
@@ -483,8 +553,11 @@ int proc_pid_statm(struct task_struct *task, char * buffer)
 		atomic_inc(&mm->mm_users);
 	task_unlock(task);
 	if (mm) {
+#ifndef NO_MM
 		struct vm_area_struct * vma;
+#endif
 		down_read(&mm->mmap_sem);
+#ifndef NO_MM
 		vma = mm->mmap;
 		while (vma) {
 			pgd_t *pgd = pgd_offset(mm, vma->vm_start);
@@ -505,6 +578,39 @@ int proc_pid_statm(struct task_struct *task, char * buffer)
 				drs += pages;
 			vma = vma->vm_next;
 		}
+#else /* !NO_MM */
+		/* DAVIDM - may be able to clean this up a bit */
+		{
+			struct mm_tblock_struct *tbp = &mm->tblock;
+
+			size += ksize(mm);
+			while (tbp) {
+				if (tbp->next)
+					size += ksize(tbp->next);
+				if (tbp->rblock) {
+					size += ksize(tbp->rblock);
+					size += ksize(tbp->rblock->kblock);
+					if (atomic_read(&mm->mm_count) > 1 ||
+							(tbp->rblock->refcount > 1))
+						share += tbp->rblock->size;
+				}
+				tbp = tbp->next;
+			}
+
+			size += (trs = mm->end_code - mm->start_code);
+			size += (drs = mm->start_stack - mm->start_data);
+			dt  = 0;
+			lrs = 0;
+			resident = size;
+
+			/* User programs expect the units to be pages. */
+			size = (size + PAGE_SIZE - 1) >> PAGE_SHIFT;
+			resident = (resident + PAGE_SIZE - 1) >> PAGE_SHIFT;
+			share = (share + PAGE_SIZE - 1) >> PAGE_SHIFT;
+			trs = (trs + PAGE_SIZE - 1) >> PAGE_SHIFT;
+			drs = (drs + PAGE_SIZE - 1) >> PAGE_SHIFT;
+		}
+#endif /* !NO_MM */
 		up_read(&mm->mmap_sem);
 		mmput(mm);
 	}
@@ -514,6 +620,7 @@ int proc_pid_statm(struct task_struct *task, char * buffer)
 
 static int show_map(struct seq_file *m, void *v)
 {
+#ifndef NO_MM
 	struct vm_area_struct *map = v;
 	struct file *file = map->vm_file;
 	int flags = map->vm_flags;
@@ -545,11 +652,13 @@ static int show_map(struct seq_file *m, void *v)
 		seq_path(m, file->f_vfsmnt, file->f_dentry, "");
 	}
 	seq_putc(m, '\n');
+#endif /* NO_MM */
 	return 0;
 }
 
 static void *m_start(struct seq_file *m, loff_t *pos)
 {
+#ifndef NO_MM
 	struct task_struct *task = m->private;
 	struct mm_struct *mm;
 	struct vm_area_struct * map;
@@ -573,25 +682,32 @@ static void *m_start(struct seq_file *m, loff_t *pos)
 		mmput(mm);
 	}
 	return map;
+#else
+	return NULL; /* DAVIDM - can we do this */
+#endif
 }
 
 static void m_stop(struct seq_file *m, void *v)
 {
+#ifndef NO_MM
 	struct vm_area_struct *map = v;
 	if (map) {
 		struct mm_struct *mm = map->vm_mm;
 		up_read(&mm->mmap_sem);
 		mmput(mm);
 	}
+#endif
 }
 
 static void *m_next(struct seq_file *m, void *v, loff_t *pos)
 {
+#ifndef NO_MM
 	struct vm_area_struct *map = v;
 	(*pos)++;
 	if (map->vm_next)
 		return map->vm_next;
 	m_stop(m, v);
+#endif
 	return NULL;
 }
 

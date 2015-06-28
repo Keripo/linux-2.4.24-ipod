@@ -1,6 +1,6 @@
 # drivers/mtd/maps/Config.in
 
-# $Id: Config.in,v 1.43 2003/01/24 14:26:38 dwmw2 Exp $
+# $Id: Config.in,v 1.2 2003/10/24 11:00:57 bas Exp $
 
 mainmenu_option next_comment
 
@@ -13,6 +13,33 @@ if [ "$CONFIG_MTD_PHYSMAP" = "y" -o "$CONFIG_MTD_PHYSMAP" = "m" ]; then
    int '    Bus width in octets' CONFIG_MTD_PHYSMAP_BUSWIDTH 2
 fi
 
+dep_tristate '  CFI Flash device mapped on Dragonix VZ' CONFIG_MTD_DRAGONIX $CONFIG_MTD_CFI_INTELEXT $CONFIG_MTD_CFI_AMDSTD $CONFIG_MTD_PARTITIONS
+dep_tristate '  CFI Flash device mapped on SnapGear/SecureEdge' CONFIG_MTD_NETtel $CONFIG_MTD_PARTITIONS
+dep_tristate '  CFI Flash device mapped on SnapGear/GEODE boards' CONFIG_MTD_SNAPGEODE $CONFIG_MTD_PARTITIONS
+dep_tristate '  CFI Flash device mapped on SnapGear/SecureEdge (uClinux)' CONFIG_MTD_NETteluC $CONFIG_UCLINUX $CONFIG_MTD_PARTITIONS
+if [ "$CONFIG_MTD_NETteluC" = "y" ]; then
+   choice '  FLASH size' \
+           " AUTO  CONFIG_FLASHAUTO \
+            128KB  CONFIG_FLASH128KB \
+              1MB  CONFIG_FLASH1MB \
+              2MB  CONFIG_FLASH2MB \
+              4MB  CONFIG_FLASH4MB \
+              6MB  CONFIG_FLASH6MB \
+              8MB  CONFIG_FLASH8MB \
+             16MB  CONFIG_FLASH16MB" AUTO
+fi
+dep_tristate '  CFI Flash device mapped on Microblaze/mbvanilla (uClinux)' CONFIG_MTD_MBVANILLA $CONFIG_UCLINUX $CONFIG_MTD_PARTITIONS
+if [ "$CONFIG_MTD_MBVANILLA" = "y" ]; then
+   choice '  FLASH size' \
+           " AUTO  CONFIG_FLASHAUTO \
+            128KB  CONFIG_FLASH128KB \
+              1MB  CONFIG_FLASH1MB \
+              2MB  CONFIG_FLASH2MB \
+              4MB  CONFIG_FLASH4MB \
+              6MB  CONFIG_FLASH6MB \
+              8MB  CONFIG_FLASH8MB " AUTO
+fi
+dep_tristate '  CFI Flash device mapped on Key Technology devices' CONFIG_MTD_KeyTechnology $CONFIG_UCLINUX $CONFIG_MTD_PARTITIONS
 if [ "$CONFIG_SPARC" = "y" -o "$CONFIG_SPARC64" = "y" ]; then
    dep_tristate '  Sun Microsystems userflash support' CONFIG_MTD_SUN_UFLASH $CONFIG_MTD_CFI
 fi
@@ -30,11 +57,11 @@ if [ "$CONFIG_X86" = "y" ]; then
    dep_tristate '  JEDEC Flash device mapped on Mixcom piggyback card' CONFIG_MTD_MIXMEM $CONFIG_MTD_JEDEC
    dep_tristate '  JEDEC Flash device mapped on Octagon 5066 SBC' CONFIG_MTD_OCTAGON $CONFIG_MTD_JEDEC
    dep_tristate '  JEDEC Flash device mapped on Tempustech VMAX SBC301' CONFIG_MTD_VMAX $CONFIG_MTD_JEDEC
+   dep_tristate '  OTP EPROM device mapped on Adtran Advanta 3110' CONFIG_MTD_ADVANTA $CONFIG_MTD_ROM
    dep_tristate '  Flash device mapped with DOCCS on NatSemi SCx200' CONFIG_MTD_SCx200_DOCFLASH $CONFIG_MTD_CFI
    dep_tristate '  BIOS flash chip on Intel L440GX boards' CONFIG_MTD_L440GX $CONFIG_MTD_JEDECPROBE
    dep_tristate '  ROM connected to AMD76X southbridge' CONFIG_MTD_AMD76XROM $CONFIG_MTD_GEN_PROBE   
    dep_tristate '  ROM connected to Intel Hub Controller 2' CONFIG_MTD_ICH2ROM $CONFIG_MTD_JEDECPROBE
-   dep_tristate '  CFI Flash device mapped on SnapGear/SecureEdge' CONFIG_MTD_NETtel $CONFIG_MTD_PARTITIONS
    dep_tristate '  BIOS flash chip on Intel SCB2 boards' CONFIG_MTD_SCB2_FLASH $CONFIG_MTD_GEN_PROBE
 fi
 
@@ -74,6 +101,10 @@ if [ "$CONFIG_SUPERH" = "y" ]; then
    fi
 fi
 
+if [ "$CONFIG_SUPERH" = "y" ]; then
+   tristate '  Hitachi SH KeyWest Intel flash device' CONFIG_MTD_KEYWEST
+fi
+
 if [ "$CONFIG_ARM" = "y" ]; then
    dep_tristate '  CFI Flash device mapped on Nora' CONFIG_MTD_NORA $CONFIG_MTD_CFI
    dep_tristate '  CFI Flash device mapped on ARM Integrator/P720T' CONFIG_MTD_ARM_INTEGRATOR $CONFIG_MTD_CFI
@@ -84,12 +115,33 @@ if [ "$CONFIG_ARM" = "y" ]; then
    dep_tristate '  CFI Flash device mapped on Epxa10db' CONFIG_MTD_EPXA10DB $CONFIG_MTD_CFI  $CONFIG_MTD_PARTITIONS $CONFIG_ARCH_CAMELOT
    dep_tristate '  CFI Flash device mapped on the FortuNet board' CONFIG_MTD_FORTUNET $CONFIG_MTD_CFI $CONFIG_MTD_PARTITIONS $CONFIG_SA1100_FORTUNET
    dep_tristate '  NV-RAM mapping AUTCPU12 board' CONFIG_MTD_AUTCPU12 $CONFIG_ARCH_AUTCPU12
+   dep_tristate '  CFI Flash device mapped on IXP425' CONFIG_MTD_IXP425 $CONFIG_MTD_CFI $CONFIG_MTD_PARTITIONS
+   dep_tristate '  CFI Flash device mapped on Coyote board' CONFIG_MTD_IXP425_COYOTE $CONFIG_MTD_CFI $CONFIG_ARCH_ADI_COYOTE
+   dep_tristate '  CFI Flash device mapped on SnapGear SE4000 board' CONFIG_MTD_SE4000 $CONFIG_MTD_CFI $CONFIG_ARCH_SE4000
+   dep_tristate '  CFI Flash device mapped on SnapGear ARM based boards' CONFIG_MTD_SNAPARM $CONFIG_MTD_CFI
    dep_tristate '  CFI Flash device mapped on EDB7312' CONFIG_MTD_EDB7312 $CONFIG_MTD_CFI
    dep_tristate '  JEDEC Flash device mapped on impA7' CONFIG_MTD_IMPA7 $CONFIG_MTD_JEDECPROBE
    dep_tristate '  JEDEC Flash device mapped on Ceiva/Polaroid PhotoMax Digital Picture Frame' CONFIG_MTD_CEIVA $CONFIG_MTD_JEDECPROBE  $CONFIG_ARCH_CEIVA
 fi
+
+if [ "$CONFIG_COBRA5272" = "y" ]; then
+	dep_tristate '  CFI Flash device mapped on COBRA5272' CONFIG_MTD_COBRA5272 $CONFIG_MTD_CFI
+fi
+
+if [ "$CONFIG_M5272C3" ]; then
+   dep_tristate '  CFI Flash device mapped on Motorola M5272C3' CONFIG_MTD_M5272C3 $CONFIG_MTD_CFI
+fi
+
 if [ "$CONFIG_ALPHA" = "y" ]; then
    dep_tristate '  Flash chip mapping on TSUNAMI' CONFIG_MTD_TSUNAMI $CONFIG_MTD_GENPROBE
+fi
+
+if [ "$CONFIG_DNP5280" = "y" ]; then
+	dep_tristate '  CFI Flash device mapped on DNP5280' CONFIG_MTD_DNP5280 $CONFIG_MTD_CFI
+fi
+
+if [ "$CONFIG_BLACKFIN" = "y" ]; then
+   dep_tristate '  ADDS-BF533-EZLITE Flash support' CONFIG_MTD_BLACKFIN_533 $CONFIG_MTD_PARTITIONS $CONFIG_BLACKFIN_EZKIT
 fi
 
 if [ "$CONFIG_UCLINUX" = "y" ]; then

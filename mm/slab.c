@@ -682,7 +682,7 @@ kmem_cache_create (const char *name, size_t size, size_t offset,
 	if (size & (BYTES_PER_WORD-1)) {
 		size += (BYTES_PER_WORD-1);
 		size &= ~(BYTES_PER_WORD-1);
-		printk("%sForcing size word alignment - %s\n", func_nm, name);
+		printk(KERN_WARNING "%sForcing size word alignment - %s\n", func_nm, name);
 	}
 	
 #if DEBUG

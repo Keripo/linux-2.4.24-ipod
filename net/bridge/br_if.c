@@ -226,8 +226,10 @@ int br_add_if(struct net_bridge *br, struct net_device *dev)
 	if (dev->br_port != NULL)
 		return -EBUSY;
 
+#if 0
 	if (dev->flags & IFF_LOOPBACK || dev->type != ARPHRD_ETHER)
 		return -EINVAL;
+#endif
 
 	if (dev->hard_start_xmit == br_dev_xmit)
 		return -ELOOP;

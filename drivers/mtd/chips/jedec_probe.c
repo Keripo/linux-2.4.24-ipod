@@ -110,6 +110,7 @@
 #define SST39LF040	0x00D7
 #define SST39SF010A	0x00B5
 #define SST39SF020A	0x00B6
+#define SST49LF020A	0x0061
 #define SST49LF030A	0x001C
 #define SST49LF040A	0x0051
 #define SST49LF080A	0x005B
@@ -126,6 +127,7 @@
 struct amd_flash_info {
 	const __u16 mfr_id;
 	const __u16 dev_id;
+	const __u16 extra_id;
 	const char *name;
 	const int DevSize;
 	const int InterfaceDesc;
@@ -671,6 +673,7 @@ static const struct amd_flash_info jedec_table[] = {
 	}, {
 		mfr_id: MANUFACTURER_ATMEL,
 		dev_id: AT49BV16X,
+		extra_id: 8,			/* always place before devices with undefined extra_id !! */
 		name: "Atmel AT49BV16X",
 		DevSize: SIZE_2MiB,
 		CmdSet: P_ID_AMD_STD,
@@ -681,6 +684,7 @@ static const struct amd_flash_info jedec_table[] = {
 	}, {
 		mfr_id: MANUFACTURER_ATMEL,
 		dev_id: AT49BV16XT,
+		extra_id: 8,			/* always place before devices with undefined extra_id !! */
 		name: "Atmel AT49BV16XT",
 		DevSize: SIZE_2MiB,
 		CmdSet: P_ID_AMD_STD,
@@ -688,6 +692,50 @@ static const struct amd_flash_info jedec_table[] = {
 		regions: {ERASEINFO(0x10000,31),
 			  ERASEINFO(0x02000,8)
 		}
+        }, {
+                mfr_id: MANUFACTURER_ATMEL,
+                dev_id: AT49BV16X,
+                extra_id: 0xc8,                 /* always place before devices with undefined extra_id !! */
+                name: "Atmel AT49BV16X4A",
+                DevSize: SIZE_2MiB,
+                CmdSet: P_ID_AMD_STD,
+                NumEraseRegions: 2,
+                regions: {ERASEINFO(0x02000,8),
+                          ERASEINFO(0x10000,31)
+                }
+        }, {
+                mfr_id: MANUFACTURER_ATMEL,
+                dev_id: AT49BV16XT,
+                extra_id: 0xc8,                 /* always place before devices with undefined extra_id !! */
+                name: "Atmel AT49BV16X4AT",
+                DevSize: SIZE_2MiB,
+                CmdSet: P_ID_AMD_STD,
+                NumEraseRegions: 2,
+                regions: {ERASEINFO(0x10000,31),
+                          ERASEINFO(0x02000,8)
+                }
+	}, {
+		mfr_id: MANUFACTURER_ATMEL,
+		dev_id: AT49BV16X,
+		name: "Atmel AT49BV16X4",
+		DevSize: SIZE_2MiB,
+		CmdSet: P_ID_AMD_STD,
+		NumEraseRegions: 3,
+		regions: {ERASEINFO(0x02000,8),
+			  ERASEINFO(0x08000,2),
+			  ERASEINFO(0x10000,30)
+		}
+	}, {
+                mfr_id: MANUFACTURER_ATMEL,
+                dev_id: AT49BV16XT,
+                name: "Atmel AT49BV16X4T",
+                DevSize: SIZE_2MiB,
+		CmdSet: P_ID_AMD_STD,
+                NumEraseRegions: 3,
+                regions: {ERASEINFO(0x10000,30),
+                          ERASEINFO(0x08000,2),
+			  ERASEINFO(0x02000,8)
+                }
 	}, {
 		mfr_id: MANUFACTURER_ATMEL,
 		dev_id: AT49BV32X,
@@ -875,6 +923,15 @@ static const struct amd_flash_info jedec_table[] = {
 		}
 	}, {
 		mfr_id: MANUFACTURER_SST,
+		dev_id: SST49LF020A,
+		name: "SST 49LF020A",
+		DevSize: SIZE_256KiB,
+		CmdSet: P_ID_AMD_STD,
+		NumEraseRegions: 1,
+		regions: {ERASEINFO(0x01000,64),
+		}
+	}, {
+		mfr_id: MANUFACTURER_SST,
 		dev_id: SST49LF030A,
 		name: "SST 49LF030A",
 		DevSize: SIZE_512KiB,
@@ -900,7 +957,18 @@ static const struct amd_flash_info jedec_table[] = {
 		NumEraseRegions: 1,
 		regions: {ERASEINFO(0x01000,256),
 		}
-	} 
+	}, {
+		mfr_id: MANUFACTURER_SST,
+		dev_id: SST39LF160,
+		name: "SST 39LF/VF160",
+		DevSize: SIZE_2MiB,
+		CmdSet: P_ID_AMD_STD,
+		NumEraseRegions: 2,
+    /* Split into two regions to get around the 256-region restriction */
+		regions: {ERASEINFO(0x01000,256),
+			  ERASEINFO(0x01000,256),
+		}
+ }
 };
 
 
@@ -911,22 +979,16 @@ static int jedec_probe_chip(struct map_info *map, __u32 base,
 
 struct mtd_info *jedec_probe(struct map_info *map);
 
-static inline u32 jedec_read_mfr(struct map_info *map, __u32 base, 
-	struct cfi_private *cfi)
-{
-	u32 result, mask;
-	mask = (1 << (cfi->device_type * 8)) -1;
-	result = cfi_read(map, base);
-	result &= mask;
-	return result;
-}
+#define MFR_ID 0
+#define DEV_ID 1
+#define EXTRA_ID 3
 
 static inline u32 jedec_read_id(struct map_info *map, __u32 base, 
-	struct cfi_private *cfi)
+	struct cfi_private *cfi,int addr)
 {
 	int osf;
 	u32 result, mask;
-	osf = cfi->interleave *cfi->device_type;
+	osf = cfi->interleave *cfi->device_type * addr;
 	mask = (1 << (cfi->device_type * 8)) -1;
 	result = cfi_read(map, base + osf);
 	result &= mask;
@@ -978,7 +1040,15 @@ static int jedec_probe_chip(struct map_info *map, __u32 base,
 			      struct flchip *chips, struct cfi_private *cfi)
 {
 	int i;
+	int busmask;
 	int unlockpass = 0;
+
+	switch(map->buswidth) {
+	case 1:  busmask = 0xff; break;
+	case 2:  busmask = 0xffff; break;
+	case 4:  busmask = 0xffffffff; break;
+	default: printk("Unknown buswidth in jedec_probe_chip\n"); return(0);
+	}
 
 	if (!cfi->numchips) {
 		switch (cfi->device_type) {
@@ -1043,13 +1113,22 @@ static int jedec_probe_chip(struct map_info *map, __u32 base,
 		/* This is the first time we're called. Set up the CFI 
 		   stuff accordingly and return */
 		
-		cfi->mfr = jedec_read_mfr(map, base, cfi);
-		cfi->id = jedec_read_id(map, base, cfi);
+		cfi->mfr = jedec_read_id(map, base, cfi, MFR_ID);
+		cfi->id = jedec_read_id(map, base, cfi, DEV_ID);
+		/* this is the third id that is available in some
+   		 * devices. If it is not used, it is set to 0 later. 
+		 */
+		cfi->extra=jedec_read_id(map, base, cfi, EXTRA_ID);
+
 		printk(KERN_INFO "Search for id:(%02x %02x) interleave(%d) type(%d)\n", 
 			cfi->mfr, cfi->id, cfi->interleave, cfi->device_type);
 		for (i=0; i<sizeof(jedec_table)/sizeof(jedec_table[0]); i++) {
-			if (cfi->mfr == jedec_table[i].mfr_id &&
-			    cfi->id == jedec_table[i].dev_id) {
+			if (cfi->mfr == (jedec_table[i].mfr_id&busmask) &&
+			    cfi->id == (jedec_table[i].dev_id&busmask) &&
+			    (!jedec_table[i].extra_id || cfi->extra == (jedec_table[i].extra_id&busmask))) {
+				
+				if (!jedec_table[i].extra_id) cfi->extra=0; /*don't check*/ 
+
 				if (!cfi_jedec_setup(cfi, i))
 					return 0;
 				goto ok_out;
@@ -1068,12 +1147,17 @@ static int jedec_probe_chip(struct map_info *map, __u32 base,
 	} else {
 		__u16 mfr;
 		__u16 id;
+		__u16 extra;
+
+
 
 		/* Make sure it is a chip of the same manufacturer and id */
-		mfr = jedec_read_mfr(map, base, cfi);
-		id = jedec_read_id(map, base, cfi);
+		mfr = jedec_read_id(map, base, cfi,MFR_ID);
+		id = jedec_read_id(map, base, cfi,DEV_ID);
+		extra = jedec_read_id(map, base, cfi,EXTRA_ID);
 
-		if ((mfr != cfi->mfr) || (id != cfi->id)) {
+		if ((mfr != cfi->mfr) || (id != cfi->id) ||
+			 (cfi->extra && extra != cfi->extra)) {
 			printk(KERN_DEBUG "%s: Found different chip or no chip at all (mfr 0x%x, id 0x%x) at 0x%x\n",
 			       map->name, mfr, id, base);
 			jedec_reset(base, map, cfi);
@@ -1085,15 +1169,17 @@ static int jedec_probe_chip(struct map_info *map, __u32 base,
 	for (i=0; i<cfi->numchips; i++) {
 		/* This chip should be in read mode if it's one
 		   we've already touched. */
-		if (jedec_read_mfr(map, chips[i].start, cfi) == cfi->mfr &&
-		    jedec_read_id(map, chips[i].start, cfi) == cfi->id) {
+		if (jedec_read_id(map, chips[i].start, cfi,MFR_ID) == cfi->mfr &&
+		    jedec_read_id(map, chips[i].start, cfi,DEV_ID) == cfi->id &&
+		    (!cfi->extra || jedec_read_id(map, chips[i].start, cfi,EXTRA_ID)==cfi->extra)) {
 			/* Eep. This chip also looks like it's in autoselect mode.
 			   Is it an alias for the new one? */
 			jedec_reset(chips[i].start, map, cfi);
 
 			/* If the device IDs go away, it's an alias */
-			if (jedec_read_mfr(map, base, cfi) != cfi->mfr ||
-			    jedec_read_id(map, base, cfi) != cfi->id) {
+			if (jedec_read_id(map, base, cfi,MFR_ID) != cfi->mfr ||
+			    jedec_read_id(map, base, cfi,DEV_ID) != cfi->id ||
+			    (cfi->extra && jedec_read_id(map, base, cfi,EXTRA_ID) != cfi->extra)) {
 				printk(KERN_DEBUG "%s: Found an alias at 0x%x for the chip at 0x%lx\n",
 				       map->name, base, chips[i].start);
 				return 0;
@@ -1104,8 +1190,9 @@ static int jedec_probe_chip(struct map_info *map, __u32 base,
 			 * too and if it's the same, assume it's an alias. */
 			/* FIXME: Use other modes to do a proper check */
 			jedec_reset(base, map, cfi);
-			if (jedec_read_mfr(map, base, cfi) == cfi->mfr &&
-			    jedec_read_id(map, base, cfi) == cfi->id) {
+			if (jedec_read_id(map, base, cfi,MFR_ID) == cfi->mfr &&
+			    jedec_read_id(map, base, cfi,DEV_ID) == cfi->id&&
+		    	   (!cfi->extra || jedec_read_id(map, base, cfi,EXTRA_ID)==cfi->extra)) {
 				printk(KERN_DEBUG "%s: Found an alias at 0x%x for the chip at 0x%lx\n",
 				       map->name, base, chips[i].start);
 				return 0;

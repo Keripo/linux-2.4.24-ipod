@@ -24,6 +24,7 @@ pci-ftvpci	  = plx90x0.o
 pci-footbridge	  = dec21285.o
 pci-shark	  = via82c505.o
 
+
 # this is here to allow us to eventually move it out to mach-ftvpci
 pci-$(CONFIG_ARCH_FTVPCI) += ftv-pci.o
 
@@ -44,8 +45,10 @@ export-objs	:= armksyms.o dma.o ecard.o fiq.o io.o oldlatches.o time.o
 no-irq-arch	:= $(CONFIG_ARCH_INTEGRATOR) $(CONFIG_ARCH_CLPS711X) \
 		   $(CONFIG_FOOTBRIDGE) $(CONFIG_ARCH_EBSA110) \
 		   $(CONFIG_ARCH_SA1100) $(CONFIG_ARCH_CAMELOT) \
-		   $(CONFIG_ARCH_MX1ADS) $(CONFIG_ARCH_OMAHA) \
-		   $(CONFIG_ARCH_AT91RM9200)
+		   $(CONFIG_ARCH_MX1ADS) $(CONFIG_ARCH_IXP1200) \
+		   $(CONFIG_ARCH_IOP3XX) $(CONFIG_ARCH_ADIFCC) \
+		   $(CONFIG_ARCH_OMAHA) $(CONFIG_ARCH_IXP425) \
+		   $(CONFIG_ARCH_IXP2000) $(CONFIG_ARCH_KS8695)
 
 ifneq ($(findstring y,$(no-irq-arch)),y)
   obj-y		+= irq-arch.o
@@ -59,6 +62,12 @@ obj-$(CONFIG_MODULES)	+= armksyms.o
 obj-$(CONFIG_ARTHUR)	+= arthur.o
 obj-$(CONFIG_ISA_DMA)	+= dma-isa.o
 obj-$(CONFIG_PCI)	+= bios32.o $(pci-$(MACHINE)) $(pci-y)
+
+obj-$(CONFIG_XSCALE_PMU_TIMER) += xscale-time.o
+obj-$(CONFIG_XSCALE_PMU) += xscale-pmu.o
+
+obj-$(CONFIG_XSCALE_PMU_TIMER) += xscale-time.o
+obj-$(CONFIG_XSCALE_PMU)       += xscale-pmu.o
 
 ifneq ($(MACHINE),ebsa110)
   obj-y		+= io.o

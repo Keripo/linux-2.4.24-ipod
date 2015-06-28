@@ -34,10 +34,22 @@
 #include <asm/kgdb.h>
 #endif
 
+#if defined(CONFIG_SH_SECUREEDGE5410)
+#include <asm/fast_timer.h>
+#endif /* defined(CONFIG_SH_SECUREEDGE5410) */
+
 #include <linux/timex.h>
 #include <linux/irq.h>
 
+#ifdef CONFIG_KEYWEST
+#define PHCR 0xa400010e
+#define PHCR_IINT (~0xc000)
+#define TMU_TOCR_INIT	0x01
+#else
 #define TMU_TOCR_INIT	0x00	/* Don't output RTC clock */
+#endif
+#define TMU0_TCR_INIT	0x0020
+#define TMU_TSTR_INIT	1
 
 #define TMU0_TCR_INIT	0x0020	/* Clock/4, rising edge; interrupt on */
 #define TMU0_TCR_CALIB	0x0000	/* Clock/4, rising edge; no interrupt */
@@ -272,6 +284,13 @@ static void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	timer_status &= ~0x100;
 	ctrl_outw(timer_status, TMU0_TCR);
 
+#if defined(CONFIG_SH_SECUREEDGE5410)
+{
+	volatile char dummy;
+	dummy = * (volatile char *) 0xb8000000;
+}
+#endif
+
 	/*
 	 * Here we are in the timer irq handler. We just have irqs locally
 	 * disabled but we don't know if the timer_bh is running on the other
@@ -294,7 +313,7 @@ static unsigned int __init get_timer_frequency(void)
 	/* Setup the timer:  We don't want to generate interrupts, just
 	 * have it count down at its natural rate.
 	 */
-	ctrl_outb(0, TMU_TSTR);
+	ctrl_outb(ctrl_inb(TMU_TSTR) & ~1, TMU_TSTR);
 #if !defined(CONFIG_CPU_SUBTYPE_SH7300)
 	ctrl_outb(TMU_TOCR_INIT, TMU_TOCR);
 #endif
@@ -302,17 +321,17 @@ static unsigned int __init get_timer_frequency(void)
 	ctrl_outl(0xffffffff, TMU0_TCOR);
 	ctrl_outl(0xffffffff, TMU0_TCNT);
 
-	rtc_gettimeofday(&tv2);
+	sh_rtc_gettimeofday(&tv2);
 
 	do {
-		rtc_gettimeofday(&tv1);
+		sh_rtc_gettimeofday(&tv1);
 	} while (tv1.tv_usec == tv2.tv_usec && tv1.tv_sec == tv2.tv_sec);
 
 	/* actually start the timer */
-	ctrl_outb(TMU0_TSTR_INIT, TMU_TSTR);
+	ctrl_outb(ctrl_inb(TMU_TSTR) | TMU_TSTR_INIT, TMU_TSTR);
 
 	do {
-		rtc_gettimeofday(&tv2);
+		sh_rtc_gettimeofday(&tv2);
 	} while (tv1.tv_usec == tv2.tv_usec && tv1.tv_sec == tv2.tv_sec);
 
 	freq = 0xffffffff - ctrl_inl(TMU0_TCNT);
@@ -334,6 +353,164 @@ static unsigned int __init get_timer_frequency(void)
 
 	return freq * factor;
 }
+
+
+#if defined(CONFIG_SH_SECUREEDGE5410)
+/*
+ *	Fast timer handler
+ */
+
+#define FAST_POLL_INTR
+
+#define FASTTIMER_IRQ   17
+#define FASTTIMER_IPR_ADDR  INTC_IPRA
+#define FASTTIMER_IPR_POS    2
+#define FASTTIMER_PRIORITY   3
+
+#ifdef FAST_POLL_INTR
+#define TMU1_TCR_INIT	0x0020
+#else
+#define TMU1_TCR_INIT	0
+#endif
+#define TMU_TSTR_INIT	1
+#define TMU1_TCR_CALIB	0x0000
+#define TMU_TOCR	0xffd80000	/* Byte access */
+#define TMU_TSTR	0xffd80004	/* Byte access */
+#define TMU1_TCOR	0xffd80014	/* Long access */
+#define TMU1_TCNT	0xffd80018	/* Long access */
+#define TMU1_TCR	0xffd8001c	/* Word access */
+
+
+struct ftentry {
+	void	(*func)(void *);
+	void	*arg;
+};
+
+#define	FAST_TIMER_MAX	8
+static struct ftentry	fast_timer[FAST_TIMER_MAX];
+static int				fast_timers = 0;
+static spinlock_t		fast_timer_lock;
+
+
+static void fast_timer_irq(int irq, void *dev_instance, struct pt_regs *regs)
+{
+	int i;
+	unsigned long timer_status;
+
+    timer_status = ctrl_inw(TMU1_TCR);
+	timer_status &= ~0x100;
+	ctrl_outw(timer_status, TMU1_TCR);
+
+	for (i = 0; i < fast_timers; i++)
+		(*fast_timer[i].func)(fast_timer[i].arg);
+}
+
+/*
+ * setup a fast timer for profiling etc etc
+ */
+static struct irqaction fasttimer_irq  =
+		{ fast_timer_irq, SA_INTERRUPT, 0, "fast timer", NULL, NULL};
+
+static void
+fast_timer_setup(int rate)
+{
+	unsigned long interval;
+
+#ifdef FAST_POLL_INTR
+	interval = (current_cpu_data.module_clock/4 + rate/2) / rate;
+
+	make_ipr_irq(FASTTIMER_IRQ, FASTTIMER_IPR_ADDR, FASTTIMER_IPR_POS,
+			FASTTIMER_PRIORITY);
+
+	printk("SnapGear: %dHz fast timer on IRQ %d\n", rate, FASTTIMER_IRQ);
+
+	setup_irq(FASTTIMER_IRQ, &fasttimer_irq);
+#else
+	printk("SnapGear: fast timer running\n");
+	interval = 0xffffffff;
+#endif
+
+	ctrl_outb(ctrl_inb(TMU_TSTR) & ~0x2, TMU_TSTR); /* disable timer 1 */
+	ctrl_outw(TMU1_TCR_INIT, TMU1_TCR);
+	ctrl_outl(interval, TMU1_TCOR);
+	ctrl_outl(interval, TMU1_TCNT);
+	ctrl_outb(ctrl_inb(TMU_TSTR) | 0x2, TMU_TSTR); /* enable timer 1 */
+
+#ifdef DEBUG
+	printk("Timer count 1 = 0x%lx\n", fast_timer_count());
+	udelay(1000);
+	printk("Timer count 2 = 0x%lx\n", fast_timer_count());
+#endif
+
+	spin_lock_init(&fast_timer_lock);
+}
+
+
+void
+fast_timer_add(void (*func)(void *arg), void *arg)
+{
+#ifdef FAST_POLL_INTR
+	int i;
+	unsigned long flags;
+
+	for (i = 0; i < fast_timers; i++) {
+		if (fast_timer[i].func == func && fast_timer[i].arg == arg) {
+			printk(KERN_ERR
+					"SnapGear: fast timer entry already exists (0x%x, 0x%x)\n",
+					(unsigned int) func, (unsigned int) arg);
+			return;
+		}
+	}
+
+	spin_lock_irqsave(&fast_timer_lock, flags);
+	if (fast_timers < FAST_TIMER_MAX) {
+		fast_timer[fast_timers].func = func;
+		fast_timer[fast_timers].arg = arg;
+		fast_timers++;
+	} else
+		printk(KERN_ERR "SnapGear: fast timer, no free slots\n");
+	spin_unlock_irqrestore(&fast_timer_lock, flags);
+#else
+	printk(KERN_ERR "SnapGear: fast timer not in interrupt mode\n");
+#endif
+}
+
+
+void
+fast_timer_remove(void (*func)(void *arg), void *arg)
+{
+#ifdef FAST_POLL_INTR
+	int i;
+	unsigned long flags;
+
+	spin_lock_irqsave(&fast_timer_lock, flags);
+	for (i = 0; i < fast_timers; i++) {
+		if (fast_timer[i].func == func && fast_timer[i].arg == arg) {
+			memmove(&fast_timer[i], &fast_timer[i+1],
+					sizeof(struct ftentry) * (FAST_TIMER_MAX - (i+1)));
+			fast_timers--;
+			spin_unlock_irqrestore(&fast_timer_lock, flags);
+			return;
+		}
+	}
+	spin_unlock_irqrestore(&fast_timer_lock, flags);
+	printk(KERN_ERR "SnapGear: fast timer entry does not exist (0x%x, 0x%x)\n",
+			(unsigned int) func, (unsigned int) arg);
+#endif
+}
+
+
+/*
+ * return the current ticks on the fast timer
+ */
+
+unsigned long
+fast_timer_count(void)
+{
+	return(ctrl_inl(TMU1_TCNT));
+}
+#endif /* defined(CONFIG_SH_SECUREEDGE5410) */
+
 
 static unsigned int sh_pclk_freq __initdata = CONFIG_SH_PCLK_FREQ;
 static int __init sh_pclk_setup(char *str)
@@ -433,6 +610,8 @@ void __init time_init(void)
 	}
 
 	setup_irq(TIMER_IRQ, &irq0);
+
+	timer_freq = get_timer_frequency();
 
 	if( sh_pclk_freq ){
 		module_clock = sh_pclk_freq;
@@ -534,8 +713,6 @@ void __init time_init(void)
 	       (module_clock/1000000), (module_clock % 1000000)/10000);
 	interval = (module_clock/4 + HZ/2) / HZ;
 
-	printk("Interval = %ld\n", interval);
-
 	current_cpu_data.cpu_clock    = cpu_clock;
 	current_cpu_data.master_clock = master_clock;
 	current_cpu_data.bus_clock    = bus_clock;
@@ -544,8 +721,14 @@ void __init time_init(void)
 #endif
 	current_cpu_data.module_clock = module_clock;
 
+#ifdef CONFIG_SH_KEYWEST
+#ifdef CONFIG_FB_MQ400
+	ctrl_outw(ctrl_inw(PHCR) & PHCR_INIT, PHCR); /* for MQ200 */
+#endif
+#endif
+
 	/* Stop all timers */
-	ctrl_outb(0, TMU_TSTR);
+	ctrl_outb(ctrl_inb(TMU_TSTR) & ~1, TMU_TSTR);
 #if !defined(CONFIG_CPU_SUBTYPE_SH7300)
 	ctrl_outb(TMU_TOCR_INIT, TMU_TOCR);
 #endif
@@ -554,7 +737,11 @@ void __init time_init(void)
 	ctrl_outw(TMU0_TCR_INIT, TMU0_TCR);
 	ctrl_outl(interval, TMU0_TCOR);
 	ctrl_outl(interval, TMU0_TCNT);
-	ctrl_outb(TMU0_TSTR_INIT, TMU_TSTR);
+	ctrl_outb(ctrl_inb(TMU_TSTR) | TMU_TSTR_INIT, TMU_TSTR);
+
+#if defined(CONFIG_SH_SECUREEDGE5410)
+	fast_timer_setup(cpu_data->type == CPU_SH7751R ? 2000 : 1000);
+#endif
 
 #if defined(CONFIG_START_TMU1)
 	/* Start TMU1 (free-running) */

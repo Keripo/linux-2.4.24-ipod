@@ -4,6 +4,246 @@
 mainmenu_option next_comment
 comment 'Character devices'
 
+#############################################################################
+#
+# uClinux options
+#
+
+if [ "$CONFIG_EXCALIBUR" = "y" ]; then
+  bool 'Nios serial support' CONFIG_NIOS_SERIAL
+  bool 'Nios SPI device support' CONFIG_NIOS_SPI
+fi
+
+if [ "$CONFIG_M68328" = "y" ]; then
+  bool '68328 serial support' CONFIG_68328_SERIAL
+  if [ "$CONFIG_68328_SERIAL" = "y" ]; then
+    bool 'Support RTS/CTS on 68328 serial support' CONFIG_68328_SERIAL_RTS_CTS
+  fi
+  if [ "$CONFIG_PILOT" = "y" ]; then
+    bool '68328 digitizer support' CONFIG_68328_DIGI
+  fi
+fi
+
+if [ "$CONFIG_M68EZ328" = "y" ]; then
+  bool '68328 serial support' CONFIG_68328_SERIAL
+  if [ "$CONFIG_68328_SERIAL" = "y" ]; then
+    bool 'Support RTS/CTS on 68328 serial support' CONFIG_68328_SERIAL_RTS_CTS
+  fi
+  if [ "$CONFIG_M68EZ328ADS" = "y" ]; then
+    bool '68681 serial support' CONFIG_68681_SERIAL
+  fi
+  bool '68328 digitizer support' CONFIG_68328_DIGI
+fi
+
+if [ "$CONFIG_M68VZ328" = "y" ]; then
+  bool '68328 serial support' CONFIG_68328_SERIAL
+  if [ "$CONFIG_68328_SERIAL" = "y" ]; then
+    bool 'Enable RTS/CTS support on 1st 68328 serial port' CONFIG_68328_SERIAL_RTS_CTS
+    bool 'Enable second 68328 serial support' CONFIG_68328_SERIAL_UART2
+    if [ "$CONFIG_68328_SERIAL_UART2" = "y" ]; then
+        bool 'Enable RTS/CTS support on 2nd 68328 serial port' CONFIG_68328_SERIAL_UART2_RTS_CTS
+    fi
+  fi
+  if [ "$CONFIG_DRAGONIXVZ" = "y"]; then
+    bool 'Dragonix VZ SPI driver' CONFIG_DRAGONIX_SPI
+  fi
+  if [ "$CONFIG_DRAGEN2" = "y" ]; then
+    tristate 'DragonEngine EEPROM driver' CONFIG_DRAGEN2_EEPROM
+    tristate 'DragonEngine Touchscreen driver' CONFIG_DRAGEN2_TS
+    tristate 'DragonEngine FPGA driver' CONFIG_DRAGEN2_FPGA
+  fi
+fi
+
+if [ "$CONFIG_M68332" = "y" ]; then
+  bool '68332 serial support' CONFIG_68332_SERIAL
+fi
+
+if [ "$CONFIG_M68EN302" = "y" ]; then
+  bool '68302 serial support' CONFIG_68302_SERIAL
+fi
+
+if [ "$CONFIG_360QUICC" = "y" ];then
+  bool 'Support UART on MC68360 SMC' CONFIG_M68360_SMC_UART
+  bool 'Support UART on MC68360 SCC' CONFIG_M68360_SCC_UART
+  if [ "$CONFIG_M68360_SMC_UART" = "y" -o "$CONFIG_M68360_SCC_UART" = "y" ]; then
+      define_bool CONFIG_M68360_UART y
+  fi
+  if [ "$CONFIG_M68360_SMC_UART" = "y" ]; then
+    bool '68360 Serial console' CONFIG_SERIAL_CONSOLE
+    # This is entirely the wrong way to do this :(
+    if [ "$CONFIG_SERIAL_CONSOLE" = "y" ]; then
+      choice 'Initial serial console speed' \
+        "9600   CONFIG_CONSOLE_9600 \
+        19200  CONFIG_CONSOLE_19200 \
+        115200 CONFIG_CONSOLE_115200" 19200
+    fi
+  fi
+fi
+
+if [ "$CONFIG_COLDFIRE" = "y" ]; then
+  bool 'MCF5272 USB support' CONFIG_COLDFIRE_USB
+  bool 'ColdFire serial support' CONFIG_COLDFIRE_SERIAL
+  if [ "$CONFIG_DEVELER_CDB4" = "y" ]; then
+    bool '16C554 serial support for AEP CDB4 board' CONFIG_SERIAL_CDB4
+  fi
+  bool 'ColdFire MBUS Support' CONFIG_MCF_MBUS
+  tristate 'ColdFire QSPI Support' CONFIG_MCF_QSPI
+  bool 'Support for TEXT based LCD driver' CONFIG_LCDTXT
+  bool 'Support for ColdFire DMA driven LCD driver' CONFIG_LCDDMA
+  bool 'Support for ColdFire DMA driven DAC0800 driver' CONFIG_DAC0800
+  bool 'Support for ColdFire 5249 audio' CONFIG_M5249AUDIO
+  bool 'Support for ColdFire 5272 audio' CONFIG_M5272AUDIO
+  bool 'Support for ColdFire DMA driven I2S DAC driver' CONFIG_DACI2S
+  bool 'Support for ColdFire T6963 driver' CONFIG_T6963
+  if [ "$CONFIG_T6963" = "y" ]; then
+    bool '   Use PIO mode' CONFIG_T6963_PIO
+    if [ "$CONFIG_T6963_PIO" != "y" ]; then
+      define_bool CONFIG_T6963_DMA y
+    fi
+  fi
+  bool 'Expansion interface driver' CONFIG_EXP
+  bool 'Reset switch support' CONFIG_RESETSWITCH
+  bool 'ColdFire Watchdog Timer Support' CONFIG_MCFWATCHDOG
+fi
+
+if [ "$CONFIG_ARCH_INTEGRATOR" = "y" ]; then
+   bool 'ARM AMBA serial port support' CONFIG_SERIAL_AMBA
+   if [ "$CONFIG_SERIAL_AMBA" = "y" ]; then
+      define_bool CONFIG_SERIAL_INTEGRATOR y
+      bool '  Support for console on Integrator serial port' CONFIG_SERIAL_AMBA_CONSOLE
+   fi
+fi
+
+if [ "$CONFIG_BOARD_SNDS100" = "y" ]; then
+   bool 'Samsung serial port support' CONFIG_SERIAL_SAMSUNG
+   if [ "$CONFIG_SERIAL_SAMSUNG" = "y" ]; then
+      bool '  Support for console on Samsung serial port' CONFIG_SERIAL_SAMSUNG_CONSOLE
+   fi
+fi
+
+if [ "$CONFIG_CPU_S3C3410" = "y" ]; then
+   bool 'Samsung S3C3410X serial ports support' CONFIG_SERIAL_S3C3410
+   if [ "$CONFIG_SERIAL_S3C3410" = "y" ]; then
+      choice 'Serial console device' \
+        "NULL   CONFIG_CONSOLE_NULL \
+         UART   CONFIG_CONSOLE_UART" UART
+      if [ "$CONFIG_CONSOLE_NULL" = "n" ]; then
+         define_bool CONFIG_SERIAL_S3C3410_CONSOLE y
+         if [ "$CONFIG_UCBOOTSTRAP" = "n" ]; then
+            int '   Initial serial console speed' CONFIG_INIT_CONSOLE_SPEED 9600
+         fi
+      fi
+   fi
+fi
+
+if [ "$CONFIG_CPU_S3C44B0X" = "y" ]; then
+   bool 'Samsung S3C44B0X serial ports support' CONFIG_SERIAL_S3C44B0X
+   if [ "$CONFIG_SERIAL_S3C44B0X" = "y" ]; then
+      choice 'Serial console device' \
+        "NULL   CONFIG_CONSOLE_NULL \
+         UART   CONFIG_CONSOLE_UART" UART
+      if [ "$CONFIG_CONSOLE_NULL" = "n" ]; then
+         define_bool CONFIG_SERIAL_S3C44B0X_CONSOLE y
+         if [ "$CONFIG_UCBOOTSTRAP" = "n" ]; then
+            int '   Initial serial console speed' CONFIG_INIT_CONSOLE_SPEED 9600
+         fi
+      fi
+   fi
+fi
+
+if [ "$CONFIG_CPU_S3C4530" = "y" ]; then
+   bool 'Samsung S3C4530a serial ports support' CONFIG_SERIAL_S3C4530
+   if [ "$CONFIG_SERIAL_S3C4530" = "y" ]; then
+      choice 'Serial console device' \
+        "NULL   CONFIG_CONSOLE_NULL \
+         UARTA  CONFIG_CONSOLE_UARTA \
+         UARTB  CONFIG_CONSOLE_UARTB" UARTA
+      if [ "$CONFIG_CONSOLE_NULL" = "n" ]; then
+         define_bool CONFIG_SERIAL_S3C4530_CONSOLE y
+         if [ "$CONFIG_UCBOOTSTRAP" = "n" ]; then
+            int '   Initial serial console speed' CONFIG_INIT_CONSOLE_SPEED 9600
+         fi
+      fi
+   fi
+fi
+
+if [ "$CONFIG_CPU_S3C2500" = "y" ]; then
+   bool 'Samsung S3C2500 serial port support' CONFIG_SERIAL_S3C2500
+   if [ "$CONFIG_SERIAL_S3C2500" = "y" ]; then
+      choice 'Serial console device' \
+        "NULL    CONFIG_CONSOLE_NULL \
+	 CUART   CONFIG_CONSOLE_CUART \
+     	 HUART0  CONFIG_CONSOLE_HUART0 \
+         HUART1  CONFIG_CONSOLE_HUART1" CUART
+      if [ "$CONFIG_CONSOLE_NULL" = "n" ]; then
+         define_bool CONFIG_SERIAL_S3C2500_CONSOLE y
+         if [ "$CONFIG_UCBOOTSTRAP" = "n" ]; then
+            int 'Initial serial console speed' CONFIG_INIT_CONSOLE_SPEED 9600
+    	 fi
+      fi
+   fi
+fi
+
+if [ "$CONFIG_ARCH_CNXT" = "y" ]; then
+    bool 'CNXT Serial (16550 type)' CONFIG_SERIAL_CNXT
+    bool 'CN9414 SPIPE serial port Support' CONFIG_SERIAL_SPIPE
+fi
+
+if [ "$CONFIG_ARCH_DSC21" = "y" ]; then
+   bool 'DSC21 serial port support' CONFIG_SERIAL_DSC21
+   if [ "$CONFIG_SERIAL_DSC21" = "y" ]; then
+      bool 'Console on DSC21 serial port' CONFIG_SERIAL_DSC21_CONSOLE
+#      if [ "$CONFIG_SERIAL_DSC21_CONSOLE" = "y" ]; then
+#         int 'Console UART (0 or 1)' CONFIG_SERIAL_DSC21_CONSOLE_UART
+#      fi
+   fi
+fi
+
+if [ "$CONFIG_ARCH_C5471" = "y" ]; then
+   bool 'C5471 serial port support' CONFIG_SERIAL_C5471
+   if [ "$CONFIG_SERIAL_C5471" = "y" ]; then
+     bool 'Console on C5471 serial port' CONFIG_SERIAL_C5471_CONSOLE
+   else
+     define_bool CONFIG_SERIAL_C5471_CONSOLE n
+   fi
+   tristate 'C5471 watchdog support' CONFIG_C5471_WDT
+   tristate 'C5471 general purpose IO driver support' CONFIG_C5471_GIO
+fi
+
+if [ "$CONFIG_ARCH_NETARM" = "y" ]; then
+   bool 'NET+ARM serial port support' CONFIG_SERIAL_NETARM
+   if [ "$CONFIG_SERIAL_NETARM" = "y" ]; then
+      bool 'Console on NETARM serial port' CONFIG_SERIAL_NETARM_CONSOLE
+   fi
+fi
+
+if [ "$CONFIG_ARCH_KS8695" = "y" ]; then
+   bool 'Kendin/Micrel KS8695 serial port support' CONFIG_SERIAL_KS8695
+   if [ "$CONFIG_SERIAL_KS8695" = "y" ]; then
+      bool 'Console on KS8695 serial port' CONFIG_SERIAL_CONSOLE
+   fi
+fi
+
+if [ "$CONFIG_CPU_H8300H" = "y" -o "$CONFIG_CPU_H8S" = "y" ]; then
+   bool 'Serial (SCI) support' CONFIG_SH_SCI
+   if [ "$CONFIG_SH_SCI" = "y" ]; then
+      bool '  Support for console on serial port' CONFIG_SERIAL_CONSOLE
+   fi
+fi
+
+if [ "$CONFIG_BLACKFIN" = "y" ]; then
+  if [ "$CONFIG_BLACKFIN_EZKIT" = "y" ]; then
+    bool "ADDS-BF533-EZLITE serial port support" CONFIG_SERIAL_BF533
+  else
+    bool "BlackFin BF535 serial port support" CONFIG_SERIAL_BF535
+  fi
+fi
+
+bool 'LED Manager support' CONFIG_LEDMAN
+bool 'DS1302 Real Time Clock support' CONFIG_DS1302
+
+#############################################################################
+
 bool 'Virtual terminal' CONFIG_VT
 if [ "$CONFIG_VT" = "y" ]; then
    bool '  Support for console on virtual terminal' CONFIG_VT_CONSOLE
@@ -23,6 +263,9 @@ if [ "$CONFIG_SERIAL" = "y" ]; then
    if [ "$CONFIG_ARCH_ACORN" = "y" ]; then
       tristate '   Atomwide serial port support' CONFIG_ATOMWIDE_SERIAL
       tristate '   Dual serial port support' CONFIG_DUALSP_SERIAL
+   fi
+   if [ "$CONFIG_ARCH_TA7S" = "y" -o "$CONFIG_ARCH_TA7V" = "y" ]; then
+      define_bool CONFIG_SERIAL_TA7 y
    fi
 fi
 dep_mbool 'Extended dumb serial driver options' CONFIG_SERIAL_EXTENDED $CONFIG_SERIAL
@@ -194,6 +437,9 @@ if [ "$CONFIG_MOUSE" != "n" ]; then
    tristate '  C&T 82C710 mouse port support (as on TI Travelmate)' CONFIG_82C710_MOUSE
    tristate '  PC110 digitizer pad support' CONFIG_PC110_PAD
    tristate '  MK712 touch screen support' CONFIG_MK712_MOUSE
+   if [ "$CONFIG_CPU_S3C44B0X" = "y" ]; then
+      tristate '  Aiji (Samsung) MBA44B0 eval-board touch screen support' CONFIG_MBA44B0_TOUCH
+   fi
 fi
 endmenu
 
@@ -216,6 +462,19 @@ dep_mbool '  Generate a panic event to all BMCs on a panic' CONFIG_IPMI_PANIC_EV
 dep_tristate '  Device interface for IPMI' CONFIG_IPMI_DEVICE_INTERFACE $CONFIG_IPMI_HANDLER
 dep_tristate '  IPMI KCS handler' CONFIG_IPMI_KCS $CONFIG_IPMI_HANDLER
 dep_tristate '  IPMI Watchdog Timer' CONFIG_IPMI_WATCHDOG $CONFIG_IPMI_HANDLER
+
+mainmenu_option next_comment
+comment 'Controller Area Network Cards/Chips'
+tristate 'can4linux Support'	CONFIG_CAN4LINUX
+if [ "$CONFIG_CAN4LINUX" != "n" ]; then
+   tristate '  AT-CAN-MINI ISA' CONFIG_CAN_ATCANMINI
+   tristate '  CntrlLink PC104' CONFIG_CAN_CCPC104
+   tristate '  ColdFire Flex CAN' CONFIG_CAN_MCF5282
+   tristate '  CPC-PCI' CONFIG_CAN_CPC_PCI
+   tristate '  I+ME Slimline ISA' CONFIG_CAN_IME_SLIMLINE
+fi
+endmenu
+
 
 mainmenu_option next_comment
 comment 'Watchdog Cards'
